@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
     .await?;
   println!("Pinged your deployment. You successfully connected to MongoDB! What else?");
 
-  let views: Views = views!["/api", 1];
+  let views = views!["/api", 1];
 
   println!("views: {:?}", views);
 
