@@ -1,5 +1,27 @@
+/// Views model
+///
+/// This model is used to store the views of the routes
+///
+/// # Example
+///
+/// ```
+/// use wserver::models::Views;
+///
+/// let views = Views {
+///  route: "/api".into(),
+///  count: 1,
+/// };
+///
+/// println!("views: {:?}", views);
+/// ```
+///
 use serde::{Deserialize, Serialize};
 
+/// Views struct
+///
+/// This struct is used to store the views of the routes
+///
+/// It tracks the route and the count of the views
 #[derive(Serialize, Deserialize)]
 pub struct Views {
   pub route: String,
@@ -17,7 +39,19 @@ impl std::fmt::Debug for Views {
   }
 }
 
-// macro for views
+///
+/// Macro to create a new Views instance
+///
+/// # Example
+///
+/// ```
+/// use wserver::views;
+///
+/// let views = views!["/api", 1];
+///
+/// println!("views: {:?}", views);
+/// ```
+///
 #[macro_export]
 macro_rules! views {
   ($route:expr, $count:expr) => {
