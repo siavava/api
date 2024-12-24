@@ -1,0 +1,3 @@
+# toml
+*.toml linguist-language=TOML
+*.lock linguist-language=TOML
