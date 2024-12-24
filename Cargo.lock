@@ -129,16 +129,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blog-backend"
-version = "0.1.0"
-dependencies = [
- "futures",
- "mongodb",
- "serde",
- "tokio",
-]
-
-[[package]]
 name = "bson"
 version = "2.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1944,6 +1934,16 @@ name = "writeable"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
+
+[[package]]
+name = "wserver"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "mongodb",
+ "serde",
+ "tokio",
+]
 
 [[package]]
 name = "wyz"
