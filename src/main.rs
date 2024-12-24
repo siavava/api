@@ -5,7 +5,7 @@ use mongodb::{
   Client,
 };
 
-use wserver::{models::Views, views};
+use wsserver::views;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,9 +25,12 @@ async fn main() -> Result<()> {
     .database("admin")
     .run_command(doc! {"ping": 1})
     .await?;
+
   println!("Pinged your deployment. You successfully connected to MongoDB! What else?");
 
-  let views = views!["/api", 1];
+  let db = client.database("blog-feed");
+
+  let views = views![&db, "/afternoon"];
 
   println!("views: {:?}", views);
 

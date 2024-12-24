@@ -17,6 +17,8 @@
 ///
 use serde::{Deserialize, Serialize};
 
+use mongodb::{bson::doc, error::Result, Database};
+
 /// Views struct
 ///
 /// This struct is used to store the views of the routes
@@ -25,7 +27,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub struct Views {
   pub route: String,
-  pub count: u32,
+  pub count: u64,
 }
 
 // impl debug for Views
@@ -39,25 +41,53 @@ impl std::fmt::Debug for Views {
   }
 }
 
-///
-/// Macro to create a new Views instance
-///
-/// # Example
-///
-/// ```
-/// use wserver::views;
-///
-/// let views = views!["/api", 1];
-///
-/// println!("views: {:?}", views);
-/// ```
-///
+// ///
+// /// Macro to create a new Views instance
+// ///
+// /// # Example
+// ///
+// /// ```
+// /// use wserver::views;
+// ///
+// /// let views = views!["/api", 1];
+// ///
+// /// println!("views: {:?}", views);
+// /// ```
+// ///
+// #[macro_export]
+// macro_rules! views {
+//   ($route:expr, $count:expr) => {
+//     Views {
+//       route: $route.into(),
+//       count: $count,
+//     }
+//   };
+// }
+
+pub async fn increment_views(db: &Database, route: &str) -> Result<Views> {
+  let collection = db.collection::<Views>("views");
+
+  let filter = doc! { "route": route };
+  let update = doc! { "$inc": { "count": 1 } };
+
+  let res = collection
+    .find_one_and_update(filter, update)
+    .upsert(true)
+    .return_document(mongodb::options::ReturnDocument::After)
+    .await;
+
+  println!("res: {:?}", res);
+
+  match res {
+    Ok(val) => Ok(val.unwrap()),
+    Err(e) => Err(e),
+  }
+}
+
 #[macro_export]
 macro_rules! views {
-  ($route:expr, $count:expr) => {
-    Views {
-      route: $route.into(),
-      count: $count,
-    }
+  ($db:expr, $route:expr) => {
+    // add to mongodb and increment count
+    $crate::models::increment_views($db, $route).await.unwrap()
   };
 }
