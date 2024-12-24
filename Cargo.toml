@@ -1,0 +1,10 @@
+[package]
+name = "blog-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.42.0", features = ["full"] }
+mongodb = "3.1.1"
+serde = "1.0.188"
+futures = "0.3.28"
