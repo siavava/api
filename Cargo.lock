@@ -324,6 +324,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "dotenv"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
+
+[[package]]
 name = "enum-as-inner"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1939,6 +1945,7 @@ checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
 name = "wsserver"
 version = "0.1.0"
 dependencies = [
+ "dotenv",
  "futures",
  "mongodb",
  "serde",
