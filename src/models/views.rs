@@ -2,19 +2,6 @@
 ///
 /// This model is used to store the views of the routes
 ///
-/// # Example
-///
-/// ```
-/// use wserver::models::Views;
-///
-/// let views = Views {
-///  route: "/api".into(),
-///  count: 1,
-/// };
-///
-/// println!("views: {:?}", views);
-/// ```
-///
 use serde::{Deserialize, Serialize};
 
 use mongodb::{bson::doc, error::Result, Database};
@@ -40,29 +27,6 @@ impl std::fmt::Debug for Views {
     )
   }
 }
-
-// ///
-// /// Macro to create a new Views instance
-// ///
-// /// # Example
-// ///
-// /// ```
-// /// use wserver::views;
-// ///
-// /// let views = views!["/api", 1];
-// ///
-// /// println!("views: {:?}", views);
-// /// ```
-// ///
-// #[macro_export]
-// macro_rules! views {
-//   ($route:expr, $count:expr) => {
-//     Views {
-//       route: $route.into(),
-//       count: $count,
-//     }
-//   };
-// }
 
 pub async fn increment_views(db: &Database, route: &str) -> Result<Views> {
   let collection = db.collection::<Views>("views");
