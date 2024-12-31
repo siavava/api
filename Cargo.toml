@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.42.0", features = ["full"] }
 mongodb = "3.1.1"
-serde = "1.0.188"
+serde = "1.0.217"
 futures = "0.3.28"
 dotenv = "0.15.0"
+actix-web = "4.9.0"

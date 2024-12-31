@@ -1,30 +1,73 @@
 use mongodb::{
-  error::Result,
   options::{ClientOptions, ServerApi, ServerApiVersion},
   Client,
 };
 
+use std::io::Result;
+
 use dotenv::dotenv;
 
-use wsserver::views;
+// use wsserver::views;
+use wsserver::{controllers::views, routes::views::*};
 
-#[tokio::main]
+use actix_web::{get, web, App, HttpServer, Responder};
+
+#[get("/hello/{name}")]
+async fn greet(name: web::Path<String>) -> impl Responder {
+  format!("Hello {name}!")
+}
+
+#[get("/")]
+async fn health_check() -> impl Responder {
+  "Ok."
+}
+
+#[actix_web::main]
 async fn main() -> Result<()> {
   dotenv().ok();
   let mongodb_uri = std::env::var("MONGODB_URI").expect("MONGODB_URI not set in .env file");
 
-  let mut client_options = ClientOptions::parse(mongodb_uri).await?;
+  let mut client_options = ClientOptions::parse(mongodb_uri).await.unwrap();
 
   let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
   client_options.server_api = Some(server_api);
 
-  let client = Client::with_options(client_options)?;
-  let db = client.database("blog-feed");
+  let client = Client::with_options(client_options).unwrap();
 
-  // test connection
-  let views = views![&db, "/afternoon"];
-
-  println!("views: {:?}", views);
-
-  Ok(())
+  HttpServer::new(move || {
+    App::new()
+      .app_data(web::Data::new(client.clone()))
+      .service(health_check)
+      .service(greet)
+      .configure(views_routes)
+  })
+  .bind(("localhost", 8080))?
+  .run()
+  .await
 }
+
+// #[tokio::main]
+// async fn main() -> Result<()> {
+//   dotenv().ok();
+//   let mongodb_uri = std::env::var("MONGODB_URI").expect("MONGODB_URI not set in .env file");
+
+//   let mut client_options = ClientOptions::parse(mongodb_uri).await?;
+
+//   let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
+//   client_options.server_api = Some(server_api);
+
+//   let client = Client::with_options(client_options)?;
+//   let db = client.database("blog-feed");
+
+//   // test connection
+//   let _views = views![&db, "/afternoon", "/afternoon"];
+//   let _views = views![&db, "/afternoon", "/afternoon"];
+//   let _views = views![&db, "/afternoon", "/morning"];
+//   let _views = views![&db, "/afternoon", "/morning"];
+//   let _views = views![&db, "/afternoon", "/morning"];
+//   let _views = views![&db, "/afternoon", "/morning"];
+
+//   // println!("views: {:?}", views);
+
+//   Ok(())
+// }

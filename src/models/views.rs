@@ -12,13 +12,13 @@ use mongodb::{bson::doc, error::Result, Database};
 ///
 /// It tracks the route and the count of the views
 #[derive(Serialize, Deserialize)]
-pub struct Views {
+pub struct PageViews {
   pub route: String,
   pub count: u64,
 }
 
 // impl debug for Views
-impl std::fmt::Debug for Views {
+impl std::fmt::Debug for PageViews {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(
       f,
@@ -28,30 +28,37 @@ impl std::fmt::Debug for Views {
   }
 }
 
-pub async fn increment_views(db: &Database, route: &str) -> Result<Views> {
-  let collection = db.collection::<Views>("views");
+// pub async fn get_views(db: &Database, route: &str, increment: Option<bool>) -> Result<PageViews> {
+//   let increment_status = increment.unwrap_or(false);
 
-  let filter = doc! { "route": route };
-  let update = doc! { "$inc": { "count": 1 } };
+//   let collection = db.collection::<PageViews>("views");
 
-  let res = collection
-    .find_one_and_update(filter, update)
-    .upsert(true)
-    .return_document(mongodb::options::ReturnDocument::After)
-    .await;
+//   let filter = doc! { "route": route };
+//   // let update = doc! { "$inc": { "count": 1 } };
+//   let update = doc! { "$inc": { "count": if increment_status { 1 } else { 0 } } };
 
-  println!("res: {:?}", res);
+//   let res = collection
+//     .find_one_and_update(filter, update)
+//     .upsert(true)
+//     .return_document(mongodb::options::ReturnDocument::After)
+//     .await;
 
-  match res {
-    Ok(val) => Ok(val.unwrap()),
-    Err(e) => Err(e),
-  }
-}
+//   println!("res: {:?}", res);
 
-#[macro_export]
-macro_rules! views {
-  ($db:expr, $route:expr) => {
-    // add to mongodb and increment count
-    $crate::models::increment_views($db, $route).await.unwrap()
-  };
-}
+//   match res {
+//     Ok(val) => Ok(val.unwrap()),
+//     Err(e) => Err(e),
+//   }
+// }
+
+// #[macro_export]
+// macro_rules! views {
+//   ($db:expr, $route:expr, $request_route:expr) => {
+//     // if request_route matches route, increment count
+//     // otherwise, do not increment count
+//     // add to mongodb and increment count
+//     $crate::models::get_views($db, $route, Some($route == $request_route))
+//       .await
+//       .unwrap()
+//   };
+// }
