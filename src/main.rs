@@ -7,8 +7,7 @@ use std::io::Result;
 
 use dotenv::dotenv;
 
-// use wsserver::views;
-use wsserver::{controllers::views, routes::views::*};
+use wsserver::routes::views::views_routes;
 
 use actix_web::{get, web, App, HttpServer, Responder};
 
@@ -45,29 +44,3 @@ async fn main() -> Result<()> {
   .run()
   .await
 }
-
-// #[tokio::main]
-// async fn main() -> Result<()> {
-//   dotenv().ok();
-//   let mongodb_uri = std::env::var("MONGODB_URI").expect("MONGODB_URI not set in .env file");
-
-//   let mut client_options = ClientOptions::parse(mongodb_uri).await?;
-
-//   let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
-//   client_options.server_api = Some(server_api);
-
-//   let client = Client::with_options(client_options)?;
-//   let db = client.database("blog-feed");
-
-//   // test connection
-//   let _views = views![&db, "/afternoon", "/afternoon"];
-//   let _views = views![&db, "/afternoon", "/afternoon"];
-//   let _views = views![&db, "/afternoon", "/morning"];
-//   let _views = views![&db, "/afternoon", "/morning"];
-//   let _views = views![&db, "/afternoon", "/morning"];
-//   let _views = views![&db, "/afternoon", "/morning"];
-
-//   // println!("views: {:?}", views);
-
-//   Ok(())
-// }

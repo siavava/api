@@ -1,5 +1,6 @@
 use crate::models::views::*;
 
+use futures::TryStreamExt;
 use mongodb::bson::doc;
 use mongodb::Client;
 
@@ -41,6 +42,17 @@ pub async fn get_views(
   }
 }
 
+pub async fn get_all_views(client: &Client) -> Result<Vec<PageViews>, DbError> {
+  let collection = client.database(DB_NAME).collection::<PageViews>(COLL_NAME);
+
+  let res = collection.find(doc! {}).await;
+
+  match res {
+    Ok(cursor) => cursor.try_collect().await,
+    Err(e) => Err(e),
+  }
+}
+
 #[macro_export]
 macro_rules! views {
   ($client:expr, $target_route:expr, $request_route:expr) => {
@@ -55,5 +67,14 @@ macro_rules! views {
     )
     .await
     .unwrap()
+  };
+}
+
+#[macro_export]
+macro_rules! all_views {
+  ($client:expr) => {
+    $crate::controllers::views::get_all_views($client)
+      .await
+      .unwrap()
   };
 }
