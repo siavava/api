@@ -23,7 +23,6 @@ struct PageViewRequestData {
 #[get("/views/all")]
 async fn test_views(client: Data<Client>) -> Result<HttpResponse, ActixError> {
   let res = all_views![&client];
-
   Ok(HttpResponse::Ok().json(res))
 }
 
@@ -37,7 +36,5 @@ async fn get_views(
     &request_data.target_route,
     &request_data.request_route
   ];
-
-  // format!("{:?}", res)
   Ok(HttpResponse::Ok().json(res))
 }
