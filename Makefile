@@ -20,6 +20,6 @@ lint:
 	cargo clippy --all-targets --all-features -- -D warnings
 
 dev:
-	cargo run
+	cargo watch -x run
 
 .PHONY: build test docs style-check lint

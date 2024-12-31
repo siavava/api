@@ -14,6 +14,7 @@ FROM debian:stable
 WORKDIR /usr/local/bin
 COPY --from=build /usr/src/wsserver/target/release/wsserver .
 
-EXPOSE 8080
+# expose 8080 to 8080
+EXPOSE 8080 8080
 
 CMD ["./wsserver"]

@@ -33,6 +33,7 @@ async fn main() -> Result<()> {
 
   let client = Client::with_options(client_options).unwrap();
 
+  println!("STARTING APP");
   HttpServer::new(move || {
     App::new()
       .app_data(web::Data::new(client.clone()))
@@ -40,7 +41,7 @@ async fn main() -> Result<()> {
       .service(greet)
       .configure(views_routes)
   })
-  .bind(("localhost", 8080))?
+  .bind(("127.0.0.1", 8080))?
   .run()
   .await
 }
