@@ -11,7 +11,6 @@ use crate::{controllers::views, models::views::PageViews};
 
 // function to inject routes
 pub fn views_routes(cfg: &mut actix_web::web::ServiceConfig) {
-  cfg.service(test_views);
   cfg.service(get_views);
   cfg.service(delete_views);
   cfg.service(insert_views);
@@ -29,23 +28,26 @@ enum PageViewPostData {
   Multiple(Vec<PageViews>),
 }
 
-#[get("/views/all")]
-async fn test_views(client: Data<Client>) -> Result<HttpResponse, ActixError> {
-  let res = all_views![&client];
-  Ok(HttpResponse::Ok().json(res))
-}
-
 #[get("/views")]
 async fn get_views(
   client: Data<Client>,
-  request_data: Json<PageViewRequestData>,
+  request_data: Option<Json<PageViewRequestData>>,
 ) -> Result<HttpResponse, ActixError> {
-  let res = views![
-    &client,
-    &request_data.target_route,
-    &request_data.request_route
-  ];
-  Ok(HttpResponse::Ok().json(res))
+  match request_data {
+    Some(data) => {
+      let request_data = data.into_inner();
+      let res = views![
+        &client,
+        &request_data.target_route,
+        &request_data.request_route
+      ];
+      Ok(HttpResponse::Ok().json(res))
+    }
+    None => {
+      let res = all_views![&client];
+      Ok(HttpResponse::Ok().json(res))
+    }
+  }
 }
 
 // delete views

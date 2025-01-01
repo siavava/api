@@ -22,4 +22,10 @@ lint:
 dev:
 	cargo watch -x run
 
-.PHONY: build test docs style-check lint
+IDENTITY = $(aws sts get-caller-identity --query 'Account' --output text)
+
+login:
+	@aws ecr get-login-password | docker login -u AWS --password-stdin "https://$(IDENTITY).dkr.ecr.us-east-1.amazonaws.com"
+
+.PHONY: build test docs style-check lint login
+
