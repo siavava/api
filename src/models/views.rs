@@ -27,3 +27,13 @@ impl std::fmt::Debug for PageViews {
     )
   }
 }
+
+// implement Default for Views
+impl Default for PageViews {
+  fn default() -> Self {
+    PageViews {
+      route: "".into(),
+      count: 0,
+    }
+  }
+}

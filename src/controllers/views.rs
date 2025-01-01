@@ -14,36 +14,81 @@ pub enum ViewsIncrement {
   NOINCREMENT,
 }
 
+fn get_views_collection(client: &Client) -> mongodb::Collection<PageViews> {
+  client.database(DB_NAME).collection::<PageViews>(COLL_NAME)
+}
+
 pub async fn get_views(
   client: &Client,
   route: &str,
   increment: ViewsIncrement,
 ) -> Result<PageViews, DbError> {
-  let collection = client.database(DB_NAME).collection::<PageViews>(COLL_NAME);
+  let collection = get_views_collection(client);
 
   let filter = doc! { "route": route };
-  // let update = doc! { "$inc": { "count": 1 } };
-  let update = doc! { "$inc": { "count": match increment {
-    ViewsIncrement::INCREMENT => 1,
-    ViewsIncrement::NOINCREMENT => 0,
-  } } };
-
-  let res = collection
-    .find_one_and_update(filter, update)
-    .upsert(true)
-    .return_document(mongodb::options::ReturnDocument::After)
-    .await;
-
-  println!("res: {:?}", res);
+  let res = match increment {
+    ViewsIncrement::INCREMENT => {
+      let update = doc! { "$inc": { "count": 1 } };
+      collection
+        .find_one_and_update(filter, update)
+        .upsert(true)
+        .return_document(mongodb::options::ReturnDocument::After)
+        .await
+    }
+    ViewsIncrement::NOINCREMENT => collection.find_one(filter).await,
+  };
 
   match res {
-    Ok(val) => Ok(val.unwrap()),
+    Ok(val) => match val {
+      Some(val) => Ok(val),
+      None => Ok(PageViews {
+        route: route.into(),
+        ..Default::default()
+      }),
+    },
+    Err(e) => Err(e),
+  }
+}
+
+// insert one view
+pub async fn insert_view(client: &Client, views: PageViews) -> Result<(), DbError> {
+  let collection = get_views_collection(client);
+
+  let res = collection.insert_one(views).await;
+
+  match res {
+    Ok(_) => Ok(()),
+    Err(e) => Err(e),
+  }
+}
+
+// insert multiple views
+pub async fn insert_views(client: &Client, views: Vec<PageViews>) -> Result<(), DbError> {
+  let collection = get_views_collection(client);
+
+  let res = collection.insert_many(views).await;
+
+  match res {
+    Ok(_) => Ok(()),
+    Err(e) => Err(e),
+  }
+}
+
+// delete views
+pub async fn delete_views(client: &Client, route: &str) -> Result<(), DbError> {
+  let collection = get_views_collection(client);
+
+  let filter = doc! { "route": route };
+  let res = collection.delete_one(filter).await;
+
+  match res {
+    Ok(_) => Ok(()),
     Err(e) => Err(e),
   }
 }
 
 pub async fn get_all_views(client: &Client) -> Result<Vec<PageViews>, DbError> {
-  let collection = client.database(DB_NAME).collection::<PageViews>(COLL_NAME);
+  let collection = get_views_collection(client);
 
   let res = collection.find(doc! {}).await;
 
