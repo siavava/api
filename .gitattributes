@@ -1,3 +1,6 @@
-# toml
+# make toml, yaml, json detectable by github
+*.{toml,yml,json} linguist-detectable=true
+
 *.toml linguist-language=TOML
-*.lock linguist-language=TOML
+*.json linguist-language=JSON
+*.yml linguist-language=YAML
