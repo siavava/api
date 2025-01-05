@@ -1,3 +1,5 @@
 # toml
 *.toml linguist-language=TOML
 *.lock linguist-language=TOML
+*.json linguist-language=JSON
+*.yml linguist-language=YAML
