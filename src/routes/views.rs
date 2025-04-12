@@ -10,7 +10,7 @@ use crate::{all_views, views};
 use crate::{controllers::views, models::views::PageViews};
 
 // function to inject routes
-pub fn views_routes(cfg: &mut actix_web::web::ServiceConfig) {
+pub fn inject_routes(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(get_views);
   cfg.service(delete_views);
   cfg.service(insert_views);
@@ -56,7 +56,6 @@ async fn delete_views(
   client: Data<Client>,
   request_data: Json<PageViewRequestData>,
 ) -> Result<HttpResponse, ActixError> {
-  println!("{:?}", request_data);
   let res = views::delete_views(&client, &request_data.target_route).await;
   match res {
     Ok(_) => Ok(HttpResponse::Ok().json("Deleted")),

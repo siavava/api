@@ -3,11 +3,11 @@ use mongodb::{
   Client,
 };
 
-use std::io::Result;
+use std::{env, io::Result};
 
 use dotenv::dotenv;
 
-use wsserver::routes::views::views_routes;
+use wsserver::routes::views;
 
 use actix_web::{get, web, App, HttpServer, Responder};
 
@@ -23,8 +23,29 @@ async fn health_check() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> Result<()> {
+  const DEFAULT_PORT: u16 = 3000;
+
   dotenv().ok();
-  let mongodb_uri = std::env::var("MONGODB_URI").expect("MONGODB_URI not set in .env file");
+
+  let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI not set in environment variables!");
+
+  let port = {
+    let res = env::var("PORT");
+    match res {
+      Ok(value) => value.parse::<u16>().unwrap_or_else(|err| {
+        println!("ERROR PARSING PROVIDED PORT '{:?}': {:?}", value, err);
+        println!("PLEASE MAKE SURE IT IS A VALID INTEGER.");
+        println!("DEFAULTING TO PORT {:?}", DEFAULT_PORT);
+        DEFAULT_PORT
+      }),
+      Err(e) => {
+        println!("{:?}", e);
+        println!("PORT NOT SET IN ENVIRONMENT VARIABLES.");
+        println!("DEFAULTING TO PORT {:?}", DEFAULT_PORT);
+        DEFAULT_PORT
+      }
+    }
+  };
 
   let mut client_options = ClientOptions::parse(mongodb_uri).await.unwrap();
 
@@ -39,9 +60,10 @@ async fn main() -> Result<()> {
       .app_data(web::Data::new(client.clone()))
       .service(health_check)
       .service(greet)
-      .configure(views_routes)
+      .configure(views::inject_routes)
   })
-  .bind(("127.0.0.1", 8080))?
+  // .bind(("127.0.0.1", port))?
+  .bind(("0.0.0.0", port))?
   .run()
   .await
 }

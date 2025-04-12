@@ -111,7 +111,7 @@ macro_rules! views {
       },
     )
     .await
-    .unwrap()
+    .unwrap_or_default()
   };
 }
 
@@ -120,6 +120,6 @@ macro_rules! all_views {
   ($client:expr) => {
     $crate::controllers::views::get_all_views($client)
       .await
-      .unwrap()
+      .unwrap_or(vec![])
   };
 }
