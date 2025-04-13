@@ -61,7 +61,21 @@ pub async fn get_views(
 pub async fn insert_view(client: &Client, views: PageViews) -> Result<(), DbError> {
   let collection = get_views_collection(client);
 
-  let res = collection.insert_one(views).await;
+  let filter = doc! { "route": &views.route };
+  let update = doc! {
+    "$set": {
+      "count": views.count as i32,
+    }
+  };
+
+  let options = mongodb::options::UpdateOptions::builder()
+    .upsert(true)
+    .build();
+
+  let res = collection
+    .update_one(filter, update)
+    .with_options(options)
+    .await;
 
   match res {
     Ok(_) => Ok(()),
@@ -71,14 +85,19 @@ pub async fn insert_view(client: &Client, views: PageViews) -> Result<(), DbErro
 
 // insert multiple views
 pub async fn insert_views(client: &Client, views: Vec<PageViews>) -> Result<(), DbError> {
-  let collection = get_views_collection(client);
+  // map views to insert_view
+  let futures = views.into_iter().map(|view| {
+    let client = client.clone();
+    async move { insert_view(&client, view).await }
+  });
 
-  let res = collection.insert_many(views).await;
+  // join all futures
+  let results = futures::future::join_all(futures).await;
 
-  match res {
-    Ok(_) => Ok(()),
-    Err(e) => Err(e),
-  }
+  results.iter().try_fold((), |acc, res| match (acc, res) {
+    ((), Ok(_)) => Ok(()),
+    ((), Err(e)) => Err(e.clone()),
+  })
 }
 
 // delete views

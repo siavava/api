@@ -70,6 +70,9 @@ async fn insert_views(
 ) -> Result<HttpResponse, ActixError> {
   match request_data.into_inner() {
     PageViewPostData::Single(item) => {
+      // if exists, update
+      // if not, insert
+      // let res = views::get_views(&client, &item.route, ).await;
       let res = views::insert_view(&client, item).await;
       match res {
         Ok(_) => Ok(HttpResponse::Ok().json("Inserted")),
