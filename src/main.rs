@@ -80,8 +80,18 @@ async fn main() -> Result<()> {
   .await
 }
 
-/// CORS verification function
-///
+/**
+  CORS verification function
+
+  ### Example
+  ```rust
+  let origin = HeaderValue::from_static("http://localhost:3000");
+  let req_head = RequestHead::default();
+  let result = verify_cors(&origin, &req_head);
+  println!("CORS verification result: {result}");
+  assert_eq!(result, true);
+  ```
+*/
 fn verify_cors(origin: &HeaderValue, _req_head: &RequestHead) -> bool {
   let allowed_origins = ["amittai.studio", "amittai.space", "localhost"];
 
