@@ -11,6 +11,9 @@ use wsserver::routes::views;
 
 use actix_web::{get, web, App, HttpServer, Responder};
 
+// cors
+use actix_cors::Cors;
+
 #[get("/hello/{name}")]
 async fn greet(name: web::Path<String>) -> impl Responder {
   format!("Hello {name}!")
@@ -57,6 +60,13 @@ async fn main() -> Result<()> {
   println!("STARTING APP");
   HttpServer::new(move || {
     App::new()
+      .wrap(
+        Cors::default()
+          .allowed_origin("https://amittai.studio")
+          .allowed_origin("https://amittai.space")
+          .allowed_methods(vec!["GET", "PUT", "POST", "DELETE"])
+          .max_age(3600),
+      )
       .app_data(web::Data::new(client.clone()))
       .service(health_check)
       .service(greet)

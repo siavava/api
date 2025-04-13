@@ -7,7 +7,7 @@ use mongodb::Client;
 use mongodb::error::Error as DbError;
 
 // if in production mode, use 'feed' database
-// otherwise, use 'feed_dev' database
+// otherwise, use 'feed-dev' database
 const DB_NAME: &str = if cfg!(debug_assertions) {
   "feed-dev"
 } else {
