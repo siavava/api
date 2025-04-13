@@ -62,6 +62,7 @@ async fn main() -> Result<()> {
     App::new()
       .wrap(
         Cors::default()
+          .allowed_origin("http://localhost:3000")
           .allowed_origin("https://amittai.studio")
           .allowed_origin("https://amittai.space")
           .allowed_methods(vec!["GET", "PUT", "POST", "DELETE"])
