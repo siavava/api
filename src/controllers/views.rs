@@ -6,7 +6,14 @@ use mongodb::Client;
 
 use mongodb::error::Error as DbError;
 
-const DB_NAME: &str = "feed";
+// if in production mode, use 'feed' database
+// otherwise, use 'feed_dev' database
+const DB_NAME: &str = if cfg!(debug_assertions) {
+  "feed-dev"
+} else {
+  "feed"
+};
+
 const COLL_NAME: &str = "views";
 
 pub enum ViewsIncrement {
