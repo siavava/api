@@ -10,7 +10,8 @@ use dotenv::dotenv;
 use wsserver::routes::views;
 
 use actix_web::{
-  dev::RequestHead, get, http::header::HeaderValue, web, App, HttpServer, Responder,
+  dev::RequestHead, get, http::header::HeaderValue, middleware::Logger, web, App, HttpServer,
+  Responder,
 };
 
 // cors
@@ -31,6 +32,7 @@ async fn main() -> Result<()> {
   const DEFAULT_PORT: u16 = 3000;
 
   dotenv().ok();
+  std::env::set_var("RUST_LOG", "actix_web=trace");
 
   let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI not set in environment variables!");
 
@@ -59,9 +61,15 @@ async fn main() -> Result<()> {
 
   let client = Client::with_options(client_options).unwrap();
 
+  env_logger::init();
+
+  log::debug!("this is a debug {}", "message");
+  log::error!("this is printed by default");
+
   println!("STARTING APP");
   HttpServer::new(move || {
     App::new()
+      .wrap(Logger::default())
       .wrap(
         Cors::default()
           // .allowed_origin("http://localhost:3000")

@@ -1,6 +1,6 @@
 use actix_web::{
   delete, get, post,
-  web::{Data, Json},
+  web::{Data, Json, Query},
   Error as ActixError, HttpResponse,
 };
 use mongodb::Client;
@@ -18,8 +18,8 @@ pub fn inject_routes(cfg: &mut actix_web::web::ServiceConfig) {
 
 #[derive(Deserialize, Debug)]
 struct PageViewRequestData {
-  target_route: String,
-  request_route: String,
+  target_route: Option<String>,
+  request_route: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -31,22 +31,26 @@ enum PageViewPostData {
 #[get("/views")]
 async fn get_views(
   client: Data<Client>,
-  request_data: Option<Json<PageViewRequestData>>,
+  request_data: Query<PageViewRequestData>,
 ) -> Result<HttpResponse, ActixError> {
-  match request_data {
-    Some(data) => {
-      let request_data = data.into_inner();
-      let res = views![
-        &client,
-        &request_data.target_route,
-        &request_data.request_route
-      ];
+  let PageViewRequestData {
+    target_route,
+    request_route,
+  } = request_data.into_inner();
+
+  match (target_route, request_route) {
+    (Some(target_str), Some(request_str)) => {
+      let res = views![&client, &target_str, &request_str];
       Ok(HttpResponse::Ok().json(res))
     }
-    None => {
+    (None, None) => {
       let res = all_views![&client];
       Ok(HttpResponse::Ok().json(res))
     }
+    _ => Ok(
+      HttpResponse::BadRequest()
+        .json("Invalid Request: You must provide neither or both of {target,request}_route"),
+    ),
   }
 }
 
@@ -56,10 +60,17 @@ async fn delete_views(
   client: Data<Client>,
   request_data: Json<PageViewRequestData>,
 ) -> Result<HttpResponse, ActixError> {
-  let res = views::delete_views(&client, &request_data.target_route).await;
-  match res {
-    Ok(_) => Ok(HttpResponse::Ok().json("Deleted")),
-    Err(_) => Ok(HttpResponse::InternalServerError().json("Error")),
+  let request_data = request_data.into_inner();
+  match request_data.target_route {
+    Some(target_route) => {
+      // delete views
+      let res = views::delete_views(&client, &target_route).await;
+      match res {
+        Ok(_) => Ok(HttpResponse::Ok().json("Deleted")),
+        Err(_) => Ok(HttpResponse::InternalServerError().json("Error")),
+      }
+    }
+    None => Ok(HttpResponse::BadRequest().json("Invalid Request: You must provide target_route")),
   }
 }
 
