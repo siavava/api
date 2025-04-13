@@ -9,7 +9,9 @@ use dotenv::dotenv;
 
 use wsserver::routes::views;
 
-use actix_web::{get, web, App, HttpServer, Responder};
+use actix_web::{
+  dev::RequestHead, get, http::header::HeaderValue, web, App, HttpServer, Responder,
+};
 
 // cors
 use actix_cors::Cors;
@@ -63,16 +65,7 @@ async fn main() -> Result<()> {
       .wrap(
         Cors::default()
           // .allowed_origin("http://localhost:3000")
-          .allowed_origin_fn(|origin, _req_head| {
-            let allowed_origins = ["amittai.studio", "amittai.space", "localhost"];
-
-            // check if any of the allowed origins is part of the origin for this request
-            allowed_origins.iter().any(|allowed_origin| {
-              origin
-                .to_str()
-                .map_or(false, |origin_str| origin_str.contains(allowed_origin))
-            })
-          })
+          .allowed_origin_fn(verify_cors)
           .allowed_methods(vec!["GET", "PUT", "POST", "DELETE"])
           .max_age(3600),
       )
@@ -85,4 +78,17 @@ async fn main() -> Result<()> {
   .bind(("0.0.0.0", port))?
   .run()
   .await
+}
+
+/// CORS verification function
+///
+fn verify_cors(origin: &HeaderValue, _req_head: &RequestHead) -> bool {
+  let allowed_origins = ["amittai.studio", "amittai.space", "localhost"];
+
+  // check if any of the allowed origins is part of the origin for this request
+  allowed_origins.iter().any(|allowed_origin| {
+    origin
+      .to_str()
+      .map_or(false, |origin_str| origin_str.contains(allowed_origin))
+  })
 }
