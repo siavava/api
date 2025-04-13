@@ -33,15 +33,15 @@ async fn main() -> Result<()> {
     let res = env::var("PORT");
     match res {
       Ok(value) => value.parse::<u16>().unwrap_or_else(|err| {
-        println!("ERROR PARSING PROVIDED PORT '{:?}': {:?}", value, err);
+        println!("ERROR PARSING PROVIDED PORT '{value}': {err}");
         println!("PLEASE MAKE SURE IT IS A VALID INTEGER.");
-        println!("DEFAULTING TO PORT {:?}", DEFAULT_PORT);
+        println!("DEFAULTING TO PORT {DEFAULT_PORT}");
         DEFAULT_PORT
       }),
       Err(e) => {
-        println!("{:?}", e);
+        println!("{e}");
         println!("PORT NOT SET IN ENVIRONMENT VARIABLES.");
-        println!("DEFAULTING TO PORT {:?}", DEFAULT_PORT);
+        println!("DEFAULTING TO PORT {DEFAULT_PORT}");
         DEFAULT_PORT
       }
     }
