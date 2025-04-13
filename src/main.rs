@@ -62,9 +62,17 @@ async fn main() -> Result<()> {
     App::new()
       .wrap(
         Cors::default()
-          .allowed_origin("http://localhost:3000")
-          .allowed_origin("https://amittai.studio")
-          .allowed_origin("https://amittai.space")
+          // .allowed_origin("http://localhost:3000")
+          .allowed_origin_fn(|origin, _req_head| {
+            let allowed_origins = ["amittai.studio", "amittai.space", "localhost"];
+
+            // check if any of the allowed origins is part of the origin for this request
+            allowed_origins.iter().any(|allowed_origin| {
+              origin
+                .to_str()
+                .map_or(false, |origin_str| origin_str.contains(allowed_origin))
+            })
+          })
           .allowed_methods(vec!["GET", "PUT", "POST", "DELETE"])
           .max_age(3600),
       )
