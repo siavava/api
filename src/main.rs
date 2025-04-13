@@ -94,11 +94,9 @@ async fn main() -> Result<()> {
 */
 fn verify_cors(origin: &HeaderValue, _req_head: &RequestHead) -> bool {
   let allowed_origins = ["amittai.studio", "amittai.space", "localhost"];
+  let origin = origin.to_str();
 
-  // check if any of the allowed origins is part of the origin for this request
-  allowed_origins.iter().any(|allowed_origin| {
-    origin
-      .to_str()
-      .map_or(false, |origin_str| origin_str.contains(allowed_origin))
-  })
+  matches!(origin, Ok(val) if allowed_origins
+    .iter()
+    .any(|allowed_origin| val.contains(allowed_origin)))
 }
