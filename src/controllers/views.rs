@@ -1,6 +1,6 @@
 use crate::models::views::*;
 
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt};
 use mongodb::bson::doc;
 use mongodb::Client;
 
@@ -31,6 +31,24 @@ pub async fn get_views(
   increment: ViewsIncrement,
 ) -> Result<PageViews, DbError> {
   let collection = get_views_collection(client);
+
+  // let mut views_stream = collection.watch().await?;
+
+  // while let Some(change) = views_stream.next().await.transpose()? {
+  // Print the change
+  // println!("Change detected: {:?}", change.docu);
+  // match change {
+  //   Ok(change) => {
+  //     println!("Change detected: {:?}", change);
+  //   }
+  //   Err(e) => {
+  //     eprintln!("Error watching changes: {:?}", e);
+  //   }
+  // }
+  // }
+
+  // WHEN a change happens, print the change.
+  // views_stream.
 
   let filter = doc! { "route": route };
   let res = match increment {

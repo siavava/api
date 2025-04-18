@@ -3,19 +3,17 @@ use mongodb::{
   Client,
 };
 
-use std::{env, io::Result};
+use std::{env, io::Result, sync::Arc};
 
 use dotenv::dotenv;
-
-use wsserver::routes::views;
 
 use actix_web::{
   dev::RequestHead, get, http::header::HeaderValue, middleware::Logger, web, App, HttpServer,
   Responder,
 };
 
-// cors
 use actix_cors::Cors;
+use wsserver::{controllers::PageEventsBroadcaster, routes::views, AppState};
 
 #[get("/hello/{name}")]
 async fn greet(name: web::Path<String>) -> impl Responder {
@@ -25,6 +23,11 @@ async fn greet(name: web::Path<String>) -> impl Responder {
 #[get("/")]
 async fn health_check() -> impl Responder {
   "Ok."
+}
+
+#[get("/broadcast-test")]
+async fn broadcast_test() -> impl Responder {
+  web::Html::new(include_str!("index.html").to_owned())
 }
 
 #[actix_web::main]
@@ -59,7 +62,13 @@ async fn main() -> Result<()> {
   let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
   client_options.server_api = Some(server_api);
 
-  let client = Client::with_options(client_options).unwrap();
+  let app_state = AppState {
+    db_client: Client::with_options(client_options.clone()).unwrap(),
+    events_handler: PageEventsBroadcaster::create(),
+  };
+
+  // let client = Client::with_options(client_options).unwrap();
+  // let broadcaster = PageEventsBroadcaster::create();
 
   env_logger::init();
 
@@ -77,8 +86,9 @@ async fn main() -> Result<()> {
           .allowed_methods(vec!["GET", "PUT", "POST", "DELETE"])
           .max_age(3600),
       )
-      .app_data(web::Data::new(client.clone()))
+      .app_data(web::Data::<AppState>::new(app_state.clone()))
       .service(health_check)
+      .service(broadcast_test)
       .service(greet)
       .configure(views::inject_routes)
   })
@@ -108,3 +118,4 @@ fn verify_cors(origin: &HeaderValue, _req_head: &RequestHead) -> bool {
     .iter()
     .any(|allowed_origin| val.contains(allowed_origin)))
 }
+
