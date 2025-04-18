@@ -43,7 +43,7 @@ macro_rules! sender {
 }
 
 #[derive(Debug, Clone)]
-struct BroadcasterInner<T: 'static + Debug + Clone + Send + SyncSerialize + Default + Eq> {
+struct BroadcasterInner<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> {
   clients: Vec<SenderData<T>>,
   collection: Collection<T>,
 }
