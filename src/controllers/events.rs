@@ -101,19 +101,15 @@ where
   /// Listens to collection for changes and broadcasts them to all clients.  
   /// This is a blocking call and should be run in a separate thread.
   pub async fn listen(&self) {
-    println!("Listening for changes...");
-
     let collection = {
       let lock = self.mutex.lock();
       lock.collection.clone()
     };
 
-    println!("Watching collection...");
     let thing: <Watch<'_, T> as IntoFuture>::Output = collection
       .watch()
       .full_document(FullDocumentType::UpdateLookup)
       .await;
-    println!("Watch initiated...");
 
     // let mut change_stream: ChangeStream<ChangeStreamEvent<T>> = thing.into();
 
@@ -124,8 +120,6 @@ where
 
     std::mem::forget(thing);
 
-    println!("HERE....");
-
     while let Some(change) = change_stream.next().await {
       match change {
         Ok(event) => {
@@ -134,20 +128,19 @@ where
 
           match data {
             Some(data) => {
-              // println!("Change detected: {:?}", data);
-              // broadcast the change to all clients
-              println!("Broadcasting change: {:?}", data);
+              // broadcast the change to appropriate clients
+              log::debug!("Broadcasting change: {:?}", data);
               self.broadcast(&data).await;
             }
             None => {
-              eprintln!("No data in change event");
+              log::warn!("No data in change event");
             }
           }
 
           // self.broadcast(&data).await;
         }
         Err(e) => {
-          eprintln!("Error watching changes: {:?}", e);
+          log::warn!("Error watching changes: {:?}", e);
         }
       }
     }
@@ -168,6 +161,15 @@ where
       {
         ok_clients.push(client.clone());
       }
+    }
+
+    // if number of clients changed, log
+    if self.mutex.lock().clients.len() != ok_clients.len() {
+      log::debug!(
+        "CLIENTS CHANGED FROM {} TO {}",
+        self.mutex.lock().clients.len(),
+        ok_clients.len()
+      );
     }
 
     self.mutex.lock().clients = ok_clients;
@@ -192,7 +194,6 @@ where
       .iter()
       .filter(|client| {
         let SenderData { sender: _, filter } = client;
-        println!("FILTER: {:?}", filter);
         filter == &T::default() || msg == filter
       })
       .map(|client| {

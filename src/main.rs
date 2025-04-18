@@ -42,15 +42,15 @@ async fn main() -> Result<()> {
     let res = env::var("PORT");
     match res {
       Ok(value) => value.parse::<u16>().unwrap_or_else(|err| {
-        println!("ERROR PARSING PROVIDED PORT '{value}': {err}");
-        println!("PLEASE MAKE SURE IT IS A VALID INTEGER.");
-        println!("DEFAULTING TO PORT {DEFAULT_PORT}");
+        log::warn!("ERROR PARSING PROVIDED PORT '{value}': {err}");
+        log::warn!("PLEASE MAKE SURE IT IS A VALID INTEGER.");
+        log::warn!("DEFAULTING TO PORT {DEFAULT_PORT}");
         DEFAULT_PORT
       }),
       Err(e) => {
-        println!("{e}");
-        println!("PORT NOT SET IN ENVIRONMENT VARIABLES.");
-        println!("DEFAULTING TO PORT {DEFAULT_PORT}");
+        log::warn!("{e}");
+        log::warn!("PORT NOT SET IN ENVIRONMENT VARIABLES.");
+        log::warn!("DEFAULTING TO PORT {DEFAULT_PORT}");
         DEFAULT_PORT
       }
     }
@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
   log::debug!("this is a debug {}", "message");
   log::error!("this is printed by default");
 
-  println!("STARTING APP");
+  log::info!("STARTING APP");
   HttpServer::new(move || {
     App::new()
       .wrap(Logger::default())

@@ -1,13 +1,12 @@
 use actix_web::{
-  delete, get, post,
+  Error as ActixError, HttpResponse, Responder, delete, get, post,
   web::{Data, Json, Query},
-  Error as ActixError, HttpResponse, Responder,
 };
-use mongodb::{bson::doc, Client};
+use mongodb::{Client, bson::doc};
 use serde::Deserialize;
 
+use crate::{AppState, models::views::PageViews};
 use crate::{all_views, views};
-use crate::{models::views::PageViews, AppState};
 
 // function to inject routes
 pub fn inject_routes(cfg: &mut actix_web::web::ServiceConfig) {
@@ -113,10 +112,6 @@ async fn event_stream(
     target_route,
     request_route: _,
   }) = request_data;
-  // let target_route = request_data.target_route.clone();
-
-  println!("TARGET ROUTE: {:?}", target_route);
-
   let filter = match target_route {
     Some(route) => PageViews::with(route),
     None => PageViews::default(),
