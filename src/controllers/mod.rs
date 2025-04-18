@@ -1,5 +1,5 @@
-pub mod page_events;
+pub mod events;
 pub mod views;
 // pub use views::*;
 
-pub use page_events::PageEventsBroadcaster;
+pub use events::EventsBroadcaster;

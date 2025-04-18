@@ -1,19 +1,16 @@
-use mongodb::{
-  options::{ClientOptions, ServerApi, ServerApiVersion},
-  Client,
-};
-
-use std::{env, io::Result, sync::Arc};
-
-use dotenv::dotenv;
-
 use actix_web::{
   dev::RequestHead, get, http::header::HeaderValue, middleware::Logger, web, App, HttpServer,
   Responder,
 };
+use dotenv::dotenv;
+use mongodb::{
+  options::{ClientOptions, ServerApi, ServerApiVersion},
+  Client,
+};
+use std::{env, io::Result};
 
 use actix_cors::Cors;
-use wsserver::{controllers::PageEventsBroadcaster, routes::views, AppState};
+use wsserver::{app_state, routes::views, AppState};
 
 #[get("/hello/{name}")]
 async fn greet(name: web::Path<String>) -> impl Responder {
@@ -62,10 +59,9 @@ async fn main() -> Result<()> {
   let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
   client_options.server_api = Some(server_api);
 
-  let app_state = AppState {
-    db_client: Client::with_options(client_options.clone()).unwrap(),
-    events_handler: PageEventsBroadcaster::create(),
-  };
+  let db_client = Client::with_options(client_options.clone()).unwrap();
+
+  let app_state = app_state!(db_client.clone());
 
   // let client = Client::with_options(client_options).unwrap();
   // let broadcaster = PageEventsBroadcaster::create();
@@ -118,4 +114,3 @@ fn verify_cors(origin: &HeaderValue, _req_head: &RequestHead) -> bool {
     .iter()
     .any(|allowed_origin| val.contains(allowed_origin)))
 }
-

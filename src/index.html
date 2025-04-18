@@ -16,12 +16,17 @@
   This is a test.
     <div id="root"></div>
     <script>
+      // get query param
+      const urlParams = new URLSearchParams(window.location.search);
+      const targetRoute = urlParams.get('target_route');
+      const requestRoute = urlParams.get('request_route')
+      // let query = 
         let root = document.getElementById("root");
-        let events = new EventSource("/page-events");
+        let events = new EventSource(`/page-events?target_route=${targetRoute}&request_route=/${requestRoute}`);
         events.onmessage = (event) => {
             let data = document.createElement("p");
             let time = new Date().toLocaleTimeString();
-            data.innerText = time + ": " + event.data;
+            data.innerText = time + ": " + event.data + `(${targetRoute})`;
             root.appendChild(data);
         }
     </script>

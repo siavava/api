@@ -1,15 +1,13 @@
 use actix_web::{
   delete, get, post,
-  web::{Data, Json, Path, Query},
-  App, Error as ActixError, HttpResponse, Responder,
+  web::{Data, Json, Query},
+  Error as ActixError, HttpResponse, Responder,
 };
-use mongodb::Client;
+use mongodb::{bson::doc, Client};
 use serde::Deserialize;
 
 use crate::{all_views, views};
-use crate::{controllers::views, models::views::PageViews, AppState};
-
-use crate::controllers::PageEventsBroadcaster;
+use crate::{models::views::PageViews, AppState};
 
 // function to inject routes
 pub fn inject_routes(cfg: &mut actix_web::web::ServiceConfig) {
@@ -17,7 +15,6 @@ pub fn inject_routes(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(delete_views);
   cfg.service(insert_views);
   cfg.service(event_stream);
-  cfg.service(broadcast_msg);
 }
 
 #[derive(Deserialize, Debug)]
@@ -108,15 +105,31 @@ async fn insert_views(
 }
 
 #[get("/page-events")]
-async fn event_stream(app_state: Data<AppState>) -> impl Responder {
-  let broadcaster = &app_state.events_handler;
-  broadcaster.new_client().await
+async fn event_stream(
+  app_state: Data<AppState>,
+  request_data: Query<PageViewRequestData>,
+) -> impl Responder {
+  let Query(PageViewRequestData {
+    target_route,
+    request_route: _,
+  }) = request_data;
+  // let target_route = request_data.target_route.clone();
+
+  println!("TARGET ROUTE: {:?}", target_route);
+
+  let filter = match target_route {
+    Some(route) => PageViews::with(route),
+    None => PageViews::default(),
+  };
+
+  let broadcaster = &app_state.view_events_handler;
+  broadcaster.new_client(filter).await
 }
 
-#[post("/broadcast/{msg}")]
-async fn broadcast_msg(app_state: Data<AppState>, msg: Path<String>) -> impl Responder {
-  let broadcaster = &app_state.events_handler;
-  let msg = msg.into_inner();
-  broadcaster.broadcast(&msg).await;
-  HttpResponse::Ok().body("msg sent")
-}
+// #[post("/broadcast/{msg}")]
+// async fn broadcast_msg(app_state: Data<AppState>, msg: Path<String>) -> impl Responder {
+//   let broadcaster = &app_state.view_events_handler;
+//   let msg = msg.into_inner();
+//   broadcaster.broadcast(&msg).await;
+//   HttpResponse::Ok().body("msg sent")
+// }

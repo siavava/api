@@ -1,6 +1,6 @@
 use crate::models::views::*;
 
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 use mongodb::bson::doc;
 use mongodb::Client;
 
@@ -16,13 +16,13 @@ const DB_NAME: &str = if cfg!(debug_assertions) {
 
 const COLL_NAME: &str = "views";
 
+pub fn get_collection(client: &Client) -> mongodb::Collection<PageViews> {
+  client.database(DB_NAME).collection::<PageViews>(COLL_NAME)
+}
+
 pub enum ViewsIncrement {
   INCREMENT,
   NOINCREMENT,
-}
-
-fn get_views_collection(client: &Client) -> mongodb::Collection<PageViews> {
-  client.database(DB_NAME).collection::<PageViews>(COLL_NAME)
 }
 
 pub async fn get_views(
@@ -30,26 +30,7 @@ pub async fn get_views(
   route: &str,
   increment: ViewsIncrement,
 ) -> Result<PageViews, DbError> {
-  let collection = get_views_collection(client);
-
-  // let mut views_stream = collection.watch().await?;
-
-  // while let Some(change) = views_stream.next().await.transpose()? {
-  // Print the change
-  // println!("Change detected: {:?}", change.docu);
-  // match change {
-  //   Ok(change) => {
-  //     println!("Change detected: {:?}", change);
-  //   }
-  //   Err(e) => {
-  //     eprintln!("Error watching changes: {:?}", e);
-  //   }
-  // }
-  // }
-
-  // WHEN a change happens, print the change.
-  // views_stream.
-
+  let collection = get_collection(client);
   let filter = doc! { "route": route };
   let res = match increment {
     ViewsIncrement::INCREMENT => {
@@ -77,7 +58,7 @@ pub async fn get_views(
 
 // insert one view
 pub async fn insert_view(client: &Client, views: PageViews) -> Result<(), DbError> {
-  let collection = get_views_collection(client);
+  let collection = get_collection(client);
 
   let filter = doc! { "route": &views.route };
   let update = doc! {
@@ -109,7 +90,7 @@ pub async fn insert_views(client: &Client, views: Vec<PageViews>) -> Result<(), 
     async move { insert_view(&client, view).await }
   });
 
-  // join all futures
+  // run all in parallel
   let results = futures::future::join_all(futures).await;
 
   results.iter().try_fold((), |acc, res| match (acc, res) {
@@ -120,7 +101,7 @@ pub async fn insert_views(client: &Client, views: Vec<PageViews>) -> Result<(), 
 
 // delete views
 pub async fn delete_views(client: &Client, route: &str) -> Result<(), DbError> {
-  let collection = get_views_collection(client);
+  let collection = get_collection(client);
 
   let filter = doc! { "route": route };
   let res = collection.delete_one(filter).await;
@@ -132,7 +113,7 @@ pub async fn delete_views(client: &Client, route: &str) -> Result<(), DbError> {
 }
 
 pub async fn get_all_views(client: &Client) -> Result<Vec<PageViews>, DbError> {
-  let collection = get_views_collection(client);
+  let collection = get_collection(client);
 
   let res = collection.find(doc! {}).await;
 
