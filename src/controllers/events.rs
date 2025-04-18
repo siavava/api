@@ -7,10 +7,10 @@ use bytestring::ByteString;
 use futures::StreamExt;
 use futures_util::future;
 use mongodb::{
-  action::Watch,
-  change_stream::{event::ChangeStreamEvent, ChangeStream},
-  options::FullDocumentType,
   Collection,
+  action::Watch,
+  change_stream::{ChangeStream, event::ChangeStreamEvent},
+  options::FullDocumentType,
 };
 use mpsc::Sender;
 use parking_lot::Mutex;
@@ -21,7 +21,7 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-pub struct EventsBroadcaster<T: 'static + Debug + Clone + Send + Sync> {
+pub struct EventsBroadcaster<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> {
   mutex: Mutex<BroadcasterInner<T>>,
 }
 
@@ -48,7 +48,7 @@ struct BroadcasterInner<T: 'static + Debug + Clone + Send + Sync + Serialize + D
   collection: Collection<T>,
 }
 
-impl<T: 'static + Debug + Clone + Send + Sync> BroadcasterInner<T> {
+impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> BroadcasterInner<T> {
   fn new(collection: Collection<T>) -> Self {
     BroadcasterInner {
       clients: Vec::new(),
@@ -59,9 +59,8 @@ impl<T: 'static + Debug + Clone + Send + Sync> BroadcasterInner<T> {
 
 // impl
 
-impl<
-    T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq + for<'a> Deserialize<'a>,
-  > EventsBroadcaster<T>
+impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq + for<'a> Deserialize<'a>>
+  EventsBroadcaster<T>
 where
   for<'a> T: Into<ByteString> + From<ByteString>,
   for<'a> Watch<'a, T>: IntoFuture,

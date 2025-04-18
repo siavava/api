@@ -1,16 +1,16 @@
 use actix_web::{
-  dev::RequestHead, get, http::header::HeaderValue, middleware::Logger, web, App, HttpServer,
-  Responder,
+  App, HttpServer, Responder, dev::RequestHead, get, http::header::HeaderValue, middleware::Logger,
+  web,
 };
 use dotenv::dotenv;
 use mongodb::{
-  options::{ClientOptions, ServerApi, ServerApiVersion},
   Client,
+  options::{ClientOptions, ServerApi, ServerApiVersion},
 };
 use std::{env, io::Result};
 
 use actix_cors::Cors;
-use wsserver::{app_state, routes::views, AppState};
+use wsserver::{AppState, app_state, routes::views};
 
 #[get("/hello/{name}")]
 async fn greet(name: web::Path<String>) -> impl Responder {
@@ -32,7 +32,9 @@ async fn main() -> Result<()> {
   const DEFAULT_PORT: u16 = 3000;
 
   dotenv().ok();
-  std::env::set_var("RUST_LOG", "actix_web=trace");
+  unsafe {
+    std::env::set_var("RUST_LOG", "actix_web=trace");
+  }
 
   let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI not set in environment variables!");
 
