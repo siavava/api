@@ -1,12 +1,11 @@
+use crate::{AppState, all_views, models::views::PageViews, views};
+
 use actix_web::{
   Error as ActixError, HttpResponse, Responder, delete, get, post,
   web::{Data, Html, Json, Query, scope},
 };
 use mongodb::{Client, bson::doc};
 use serde::Deserialize;
-
-use crate::{AppState, models::views::PageViews};
-use crate::{all_views, views};
 
 // function to inject routes
 pub fn inject_routes(cfg: &mut actix_web::web::ServiceConfig) {

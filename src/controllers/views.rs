@@ -1,10 +1,7 @@
 use crate::models::views::*;
 
 use futures::TryStreamExt;
-use mongodb::bson::doc;
-use mongodb::Client;
-
-use mongodb::error::Error as DbError;
+use mongodb::{Client, bson::doc, error::Error as DbError};
 
 // if in production mode, use 'feed' database
 // otherwise, use 'feed-dev' database

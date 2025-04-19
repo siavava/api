@@ -1,6 +1,9 @@
 build:
 	@cargo build --release
 
+dev:
+	cargo watch -x run
+
 clean:
 	@cargo clean
 
@@ -9,7 +12,7 @@ test:
 	@cargo test $(TESTS) --offline --lib -- --color=always --nocapture
 
 docs: build
-	@cargo doc --no-deps
+	@cargo doc # --no-deps
 
 style-check:
 	@rustup component add rustfmt 2> /dev/null
@@ -19,13 +22,6 @@ lint:
 	@rustup component add clippy 2> /dev/null
 	cargo clippy --all-targets --all-features -- -D warnings
 
-dev:
-	cargo watch -x run
-
-IDENTITY = $(aws sts get-caller-identity --query 'Account' --output text) # 951311911900
-
-login:
-	@aws ecr get-login-password | docker login -u AWS --password-stdin "https://951311911900.dkr.ecr.us-east-1.amazonaws.com"
 
 build-docker-local:
 	# docker build -t siavava-blog-api .

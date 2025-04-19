@@ -1,10 +1,9 @@
-use std::sync::Arc;
-
-use controllers::{views, EventsBroadcaster};
+use controllers::{EventsBroadcaster, views};
 use models::views::PageViews;
 use mongodb::Client;
+use std::sync::Arc;
 
-// create mod.rs file in models folder
+// exported mods
 pub mod controllers;
 pub mod models;
 pub mod routes;

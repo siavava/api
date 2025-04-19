@@ -16,8 +16,7 @@ use mpsc::Sender;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use sse::Event;
-use std::{fmt::Debug, future::IntoFuture};
-use std::{sync::Arc, time::Duration};
+use std::{fmt::Debug, future::IntoFuture, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 

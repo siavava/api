@@ -3,9 +3,8 @@
 /// This model is used to store the views of the routes
 ///
 use bytestring::ByteString;
-use serde::{Deserialize, Serialize};
-
 use mongodb::bson::doc;
+use serde::{Deserialize, Serialize};
 
 /// Views struct
 ///
