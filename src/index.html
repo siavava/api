@@ -26,13 +26,13 @@
             let elem = document.createElement("p");
             elem.style.fontWeight = 600
             let time = new Date().toLocaleTimeString();
-            console.log(`${event.data}`)
+            // console.log(`${event.data}`)
             try {
                 let object = JSON.parse(event.data);
-                console.log("OBJECT: ", object)
+                // console.log("OBJECT: ", object)
                 elem.innerText = `${time}: ${object.route} = ${object.count}`
             } catch (e) {
-                console.error("E: ", e)
+                // console.error("E: ", e)
                 elem.innerText = time + ": " + event.data + `(${targetRoute})`;
             }
 
