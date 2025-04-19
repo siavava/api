@@ -190,16 +190,14 @@ where
   pub async fn broadcast(&self, msg: &T) {
     let clients = self.mutex.lock().clients.clone();
 
-    let send_futures = clients
-      .iter()
-      .filter(|client| {
-        let SenderData { sender: _, filter } = client;
-        filter == &T::default() || msg == filter
-      })
-      .map(|client| {
-        let SenderData { sender, filter: _ } = client;
-        sender.send(sse::Data::new(msg.clone()).into())
-      });
+    let send_futures = clients.iter().filter_map(|client| {
+      let SenderData { sender, filter } = client;
+      if filter == &T::default() || msg == filter {
+        Some(sender.send(sse::Data::new(msg.clone()).into()))
+      } else {
+        None
+      }
+    });
 
     let _ = future::join_all(send_futures).await;
   }

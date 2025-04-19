@@ -1,6 +1,6 @@
 use actix_web::{
   Error as ActixError, HttpResponse, Responder, delete, get, post,
-  web::{Data, Json, Query},
+  web::{Data, Html, Json, Query, scope},
 };
 use mongodb::{Client, bson::doc};
 use serde::Deserialize;
@@ -10,10 +10,14 @@ use crate::{all_views, views};
 
 // function to inject routes
 pub fn inject_routes(cfg: &mut actix_web::web::ServiceConfig) {
-  cfg.service(get_views);
-  cfg.service(delete_views);
-  cfg.service(insert_views);
-  cfg.service(event_stream);
+  cfg.service(
+    scope("/views")
+      .service(get_views)
+      .service(delete_views)
+      .service(insert_views)
+      .service(watch_views)
+      .service(watch_views_test),
+  );
 }
 
 #[derive(Deserialize, Debug)]
@@ -28,7 +32,7 @@ enum PageViewPostData {
   Multiple(Vec<PageViews>),
 }
 
-#[get("/views")]
+#[get("/")]
 async fn get_views(
   app_state: Data<AppState>,
   request_data: Query<PageViewRequestData>,
@@ -57,7 +61,7 @@ async fn get_views(
 }
 
 // delete views
-#[delete("/views")]
+#[delete("/")]
 async fn delete_views(
   app_state: Data<AppState>,
   request_data: Json<PageViewRequestData>,
@@ -77,7 +81,7 @@ async fn delete_views(
   }
 }
 
-#[post("/views")]
+#[post("/")]
 async fn insert_views(
   client: Data<Client>,
   request_data: Json<PageViewPostData>,
@@ -103,28 +107,37 @@ async fn insert_views(
   }
 }
 
-#[get("/page-events")]
-async fn event_stream(
+#[get("/watch/")]
+async fn watch_views(
   app_state: Data<AppState>,
   request_data: Query<PageViewRequestData>,
 ) -> impl Responder {
-  let Query(PageViewRequestData {
-    target_route,
-    request_route: _,
-  }) = request_data;
-  let filter = match target_route {
-    Some(route) => PageViews::with(route),
-    None => PageViews::default(),
+  let filter = {
+    let Query(PageViewRequestData {
+      target_route,
+      request_route: _,
+    }) = request_data;
+
+    match target_route {
+      // if it's a valid route, return with that route
+      Some(route) => {
+        if route == "null" {
+          PageViews::default()
+        } else {
+          PageViews::with(route)
+        }
+      }
+
+      // if it's empty, return default
+      None => PageViews::default(),
+    }
   };
 
   let broadcaster = &app_state.view_events_handler;
   broadcaster.new_client(filter).await
 }
 
-// #[post("/broadcast/{msg}")]
-// async fn broadcast_msg(app_state: Data<AppState>, msg: Path<String>) -> impl Responder {
-//   let broadcaster = &app_state.view_events_handler;
-//   let msg = msg.into_inner();
-//   broadcaster.broadcast(&msg).await;
-//   HttpResponse::Ok().body("msg sent")
-// }
+#[get("/watch/test/")]
+async fn watch_views_test() -> impl Responder {
+  Html::new(include_str!("../index.html").to_owned())
+}

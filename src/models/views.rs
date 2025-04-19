@@ -12,7 +12,7 @@ use mongodb::bson::doc;
 /// This struct is used to store the views of the routes
 ///
 /// It tracks the route and the count of the views
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct PageViews {
   pub route: String,
   pub count: u64,
@@ -32,9 +32,13 @@ impl std::fmt::Debug for PageViews {
 // convert PagViews to bytestring
 impl std::convert::From<PageViews> for ByteString {
   fn from(page_views: PageViews) -> Self {
-    let PageViews { route, count } = page_views;
-    let bytes_str = format!("{{route: {route}, count: {count}}}",);
-    ByteString::from(bytes_str)
+    // let PageViews { route, count } = page_views;
+    // let bytes_str = format!("{{route:\"{route}\",count:\"{count}\"}}",);
+    let bytes_str = serde_json::to_string(&page_views);
+    match bytes_str {
+      Ok(value) => ByteString::from(value),
+      Err(_) => ByteString::default(),
+    }
   }
 }
 
@@ -56,18 +60,18 @@ impl std::convert::From<ByteString> for PageViews {
 }
 
 // implement Default for Views
-impl Default for PageViews {
-  fn default() -> Self {
-    PageViews {
-      route: "".into(),
-      count: 0,
-    }
-  }
-}
 
 impl PartialEq for PageViews {
   fn eq(&self, other: &Self) -> bool {
     self.route == other.route
+
+    // ? DEPRECATED VERSION
+    // // let conditions = [
+    // //   // self.route.is_empty() && other.route.is_empty(), // if other has "empty" route, pass
+    // //   self.route == other.route, // otherwise pass if routes equivalent
+    // // ];
+    // //
+    // // conditions.iter().any(|x| *x)
   }
 }
 

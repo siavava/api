@@ -1,8 +1,13 @@
 use actix_web::{
-  App, HttpServer, Responder, dev::RequestHead, get, http::header::HeaderValue, middleware::Logger,
+  App, HttpServer, Responder,
+  dev::RequestHead,
+  get,
+  http::header::HeaderValue,
+  middleware::{Logger, NormalizePath, TrailingSlash},
   web,
 };
 use dotenv::dotenv;
+use log::LevelFilter;
 use mongodb::{
   Client,
   options::{ClientOptions, ServerApi, ServerApiVersion},
@@ -22,19 +27,20 @@ async fn health_check() -> impl Responder {
   "Ok."
 }
 
-#[get("/broadcast-test")]
-async fn broadcast_test() -> impl Responder {
-  web::Html::new(include_str!("index.html").to_owned())
-}
-
 #[actix_web::main]
 async fn main() -> Result<()> {
   const DEFAULT_PORT: u16 = 3000;
 
   dotenv().ok();
-  unsafe {
-    std::env::set_var("RUST_LOG", "actix_web=trace");
-  }
+  env_logger::init();
+
+  let logging_filter = if cfg!(debug_assertions) {
+    LevelFilter::Trace
+  } else {
+    LevelFilter::Info
+  };
+
+  log::set_max_level(logging_filter);
 
   let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI not set in environment variables!");
 
@@ -42,15 +48,15 @@ async fn main() -> Result<()> {
     let res = env::var("PORT");
     match res {
       Ok(value) => value.parse::<u16>().unwrap_or_else(|err| {
-        log::warn!("ERROR PARSING PROVIDED PORT '{value}': {err}");
-        log::warn!("PLEASE MAKE SURE IT IS A VALID INTEGER.");
-        log::warn!("DEFAULTING TO PORT {DEFAULT_PORT}");
+        log::error!("ERROR PARSING PROVIDED PORT '{value}': {err}");
+        log::error!("PLEASE MAKE SURE IT IS A VALID INTEGER.");
+        log::error!("DEFAULTING TO PORT {DEFAULT_PORT}");
         DEFAULT_PORT
       }),
       Err(e) => {
-        log::warn!("{e}");
-        log::warn!("PORT NOT SET IN ENVIRONMENT VARIABLES.");
-        log::warn!("DEFAULTING TO PORT {DEFAULT_PORT}");
+        log::debug!("{e}");
+        log::debug!("PORT NOT SET IN ENVIRONMENT VARIABLES.");
+        log::debug!("DEFAULTING TO PORT {DEFAULT_PORT}");
         DEFAULT_PORT
       }
     }
@@ -65,11 +71,6 @@ async fn main() -> Result<()> {
 
   let app_state = app_state!(db_client.clone());
 
-  // let client = Client::with_options(client_options).unwrap();
-  // let broadcaster = PageEventsBroadcaster::create();
-
-  env_logger::init();
-
   log::debug!("this is a debug {}", "message");
   log::error!("this is printed by default");
 
@@ -77,6 +78,7 @@ async fn main() -> Result<()> {
   HttpServer::new(move || {
     App::new()
       .wrap(Logger::default())
+      .wrap(NormalizePath::new(TrailingSlash::Always))
       .wrap(
         Cors::default()
           // .allowed_origin("http://localhost:3000")
@@ -86,7 +88,6 @@ async fn main() -> Result<()> {
       )
       .app_data(web::Data::<AppState>::new(app_state.clone()))
       .service(health_check)
-      .service(broadcast_test)
       .service(greet)
       .configure(views::inject_routes)
   })
@@ -104,7 +105,6 @@ async fn main() -> Result<()> {
   let origin = HeaderValue::from_static("http://localhost:3000");
   let req_head = RequestHead::default();
   let result = verify_cors(&origin, &req_head);
-  println!("CORS verification result: {result}");
   assert_eq!(result, true);
   ```
 */
