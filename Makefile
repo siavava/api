@@ -2,6 +2,8 @@
 #
 # Author: Amittai (@siavava)
 
+.PHONY: build test docs style-check lint login
+
 build:
 	@cargo build --release
 
@@ -26,4 +28,3 @@ lint:
 	@rustup component add clippy 2> /dev/null
 	cargo clippy --all-targets --all-features -- -D warnings
 
-.PHONY: build test docs style-check lint login
