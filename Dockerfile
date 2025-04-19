@@ -1,3 +1,11 @@
+# Dockerfile for building server image
+#
+# Author: Amittai (@siavava)
+
+##########################################
+# COMPILE SERVER using RUST image
+##########################################
+
 FROM rust:1.86 AS build
 
 WORKDIR /usr/src/wsserver
@@ -5,9 +13,9 @@ COPY . .
 
 RUN make
 
-
-############################################
-
+##########################################
+# BUILD DEPLOYMENT IMAGE (debian-slim)
+##########################################
 
 FROM debian:stable-slim
 
