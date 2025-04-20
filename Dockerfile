@@ -10,7 +10,7 @@ FROM rust:1.86-slim-bookworm AS build
 
 RUN apt-get update && apt-get install make
 
-WORKDIR /usr/src/wsserver
+WORKDIR /usr/src/server
 COPY . .
 
 RUN make
@@ -22,9 +22,9 @@ RUN make
 FROM debian:stable-slim AS runner
 
 WORKDIR /usr/local/bin
-COPY --from=build /usr/src/wsserver/target/release/wsserver .
+COPY --from=build /usr/src/server/target/release/server .
 
 EXPOSE 8080 8080
 EXPOSE 8080 80
 
-ENTRYPOINT ["./wsserver"]
+ENTRYPOINT ["./server"]

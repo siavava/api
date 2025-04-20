@@ -12,9 +12,9 @@ use mongodb::{
   Client,
   options::{ClientOptions, ServerApi, ServerApiVersion},
 };
+use server::{AppState, app_state, routes::views};
 use std::{env, io::Result};
 use tracing::{error, info};
-use wsserver::{AppState, app_state, routes::views};
 
 #[get("/hello/{name}")]
 async fn greet(name: web::Path<String>) -> impl Responder {
