@@ -13,27 +13,30 @@
     </style>
 </head>
 <body>
-  This is a test.
-    <div id="root"></div>
+    <div id="root" style="font-family: monospace"></div>
     <script>
         // get query param
         const urlParams = new URLSearchParams(window.location.search);
         const targetRoute = urlParams.get('target_route');
-        const requestRoute = urlParams.get('request_route')
+        const requestRoute = urlParams.get('request_route');
         let root = document.getElementById("root");
-        let events = new EventSource(`/views/watch/?target_route=${targetRoute}&request_route=/${requestRoute}`);
+
+        let path = `/views/watch/`;
+        
+        if (targetRoute && requestRoute) {
+            path += `?target_route=${targetRoute}&request_route=/${requestRoute}`
+        }
+        
+        let events = new EventSource(path);
         events.onmessage = (event) => {
             let elem = document.createElement("p");
-            elem.style.fontWeight = 600
             let time = new Date().toLocaleTimeString();
-            // console.log(`${event.data}`)
             try {
                 let object = JSON.parse(event.data);
-                // console.log("OBJECT: ", object)
                 elem.innerText = `${time}: ${object.route} = ${object.count}`
             } catch (e) {
-                // console.error("E: ", e)
-                elem.innerText = time + ": " + event.data + `(${targetRoute})`;
+                let route = targetRoute ? `(${targetRoute})` : `(root)`
+                elem.innerText = `${route}@${time}: ${event.data}`;
             }
 
             root.appendChild(elem);

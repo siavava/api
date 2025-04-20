@@ -119,15 +119,10 @@ async fn watch_views(
 
     match target_route {
       // if it's a valid route, return with that route
-      Some(route) => {
-        if route == "null" {
-          PageViews::default()
-        } else {
-          PageViews::with(route)
-        }
-      }
+      Some(route) => PageViews::with(route),
 
       // if it's empty, return default
+      // NOTE: default will pass filter
       None => PageViews::default(),
     }
   };
