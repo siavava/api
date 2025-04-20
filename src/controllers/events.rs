@@ -166,16 +166,22 @@ where
     }
 
     self.mutex.lock().clients = ok_clients;
+
+    // self.log_listeners().await;
   }
 
   /// Registers client with broadcaster, returning an SSE response body.
   pub async fn new_client(&self, filter: T) -> Sse<InfallibleStream<ReceiverStream<sse::Event>>> {
     let (tx, rx) = mpsc::channel(10);
 
-    tx.send(sse::Data::new("connected").into()).await.unwrap();
+    tx.send(sse::Data::new("connected").event("connected").into())
+      .await
+      .unwrap();
 
     info!("connected client with filter: {:?}", filter);
     self.mutex.lock().clients.push(sender!(tx, filter));
+
+    // self.log_listeners().await;
 
     Sse::from_infallible_receiver(rx)
   }
@@ -188,12 +194,25 @@ where
       let SenderData { sender, filter } = client;
       if filter == &T::default() || msg == filter {
         info!("notifying client for filter: {:?}", filter);
-        Some(sender.send(sse::Data::new(msg.clone()).into()))
+        Some(sender.send(sse::Data::new(msg.clone()).event("update").into()))
       } else {
         None
       }
     });
 
     let _ = future::join_all(send_futures).await;
+  }
+
+  pub async fn log_listeners(&self) {
+    // print all listeners (just their filters)
+    let filters: Vec<T> = self
+      .mutex
+      .lock()
+      .clients
+      .iter()
+      .map(|client| client.filter.clone())
+      .collect();
+
+    info!("CURRENT CLIENTS: {:?}", filters);
   }
 }
