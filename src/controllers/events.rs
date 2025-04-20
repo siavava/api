@@ -19,6 +19,7 @@ use sse::Event;
 use std::{fmt::Debug, future::IntoFuture, sync::Arc, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use tracing::{debug, info, warn};
 
 pub struct EventsBroadcaster<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> {
   mutex: Mutex<BroadcasterInner<T>>,
@@ -128,18 +129,18 @@ where
           match data {
             Some(data) => {
               // broadcast the change to appropriate clients
-              log::debug!("Broadcasting change: {:?}", data);
+              debug!("Broadcasting change: {:?}", data);
               self.broadcast(&data).await;
             }
             None => {
-              log::warn!("No data in change event");
+              warn!("No data in change event");
             }
           }
 
           // self.broadcast(&data).await;
         }
         Err(e) => {
-          log::warn!("Error watching changes: {:?}", e);
+          warn!("Error watching changes: {:?}", e);
         }
       }
     }
@@ -159,16 +160,9 @@ where
         .is_ok()
       {
         ok_clients.push(client.clone());
+      } else {
+        info!("removing stale client for {:?}", client.filter);
       }
-    }
-
-    // if number of clients changed, log
-    if self.mutex.lock().clients.len() != ok_clients.len() {
-      log::debug!(
-        "CLIENTS CHANGED FROM {} TO {}",
-        self.mutex.lock().clients.len(),
-        ok_clients.len()
-      );
     }
 
     self.mutex.lock().clients = ok_clients;
@@ -180,6 +174,7 @@ where
 
     tx.send(sse::Data::new("connected").into()).await.unwrap();
 
+    info!("connected client with filter: {:?}", filter);
     self.mutex.lock().clients.push(sender!(tx, filter));
 
     Sse::from_infallible_receiver(rx)
@@ -192,6 +187,7 @@ where
     let send_futures = clients.iter().filter_map(|client| {
       let SenderData { sender, filter } = client;
       if filter == &T::default() || msg == filter {
+        info!("notifying client for filter: {:?}", filter);
         Some(sender.send(sse::Data::new(msg.clone()).into()))
       } else {
         None

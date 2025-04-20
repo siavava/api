@@ -8,7 +8,7 @@ use mongodb::{Client, bson::doc};
 use serde::Deserialize;
 
 // function to inject routes
-pub fn inject_routes(cfg: &mut actix_web::web::ServiceConfig) {
+pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(
     scope("/views")
       .service(get_views)

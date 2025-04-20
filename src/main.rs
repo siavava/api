@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_web::{
   App, HttpServer, Responder,
   dev::RequestHead,
@@ -7,14 +8,12 @@ use actix_web::{
   web,
 };
 use dotenv::dotenv;
-use log::LevelFilter;
 use mongodb::{
   Client,
   options::{ClientOptions, ServerApi, ServerApiVersion},
 };
 use std::{env, io::Result};
-
-use actix_cors::Cors;
+use tracing::{error, info};
 use wsserver::{AppState, app_state, routes::views};
 
 #[get("/hello/{name}")]
@@ -32,15 +31,7 @@ async fn main() -> Result<()> {
   const DEFAULT_PORT: u16 = 3000;
 
   dotenv().ok();
-  env_logger::init();
-
-  let logging_filter = if cfg!(debug_assertions) {
-    LevelFilter::Trace
-  } else {
-    LevelFilter::Info
-  };
-
-  log::set_max_level(logging_filter);
+  tracing_subscriber::fmt::init();
 
   let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI not set in environment variables!");
 
@@ -48,15 +39,15 @@ async fn main() -> Result<()> {
     let res = env::var("PORT");
     match res {
       Ok(value) => value.parse::<u16>().unwrap_or_else(|err| {
-        log::error!("ERROR PARSING PROVIDED PORT '{value}': {err}");
-        log::error!("PLEASE MAKE SURE IT IS A VALID INTEGER.");
-        log::error!("DEFAULTING TO PORT {DEFAULT_PORT}");
+        error!("ERROR PARSING PROVIDED PORT '{value}': {err}");
+        error!("PLEASE MAKE SURE IT IS A VALID INTEGER.");
+        error!("DEFAULTING TO PORT {DEFAULT_PORT}");
         DEFAULT_PORT
       }),
       Err(e) => {
-        log::debug!("{e}");
-        log::debug!("PORT NOT SET IN ENVIRONMENT VARIABLES.");
-        log::debug!("DEFAULTING TO PORT {DEFAULT_PORT}");
+        error!("{e}");
+        error!("PORT NOT SET IN ENVIRONMENT VARIABLES.");
+        error!("DEFAULTING TO PORT {DEFAULT_PORT}");
         DEFAULT_PORT
       }
     }
@@ -71,10 +62,7 @@ async fn main() -> Result<()> {
 
   let app_state = app_state!(db_client.clone());
 
-  log::debug!("this is a debug {}", "message");
-  log::error!("this is printed by default");
-
-  log::info!("STARTING APP");
+  info!("STARTING APP");
   HttpServer::new(move || {
     App::new()
       .wrap(Logger::default())
@@ -89,7 +77,7 @@ async fn main() -> Result<()> {
       .app_data(web::Data::<AppState>::new(app_state.clone()))
       .service(health_check)
       .service(greet)
-      .configure(views::inject_routes)
+      .configure(views::register)
   })
   // .bind(("127.0.0.1", port))?
   .bind(("0.0.0.0", port))?
