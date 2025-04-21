@@ -1,6 +1,6 @@
 use actix_web::rt::time::interval;
 use actix_web_lab::{
-  sse::{self, Sse},
+  sse::{self, Event, Sse},
   util::InfallibleStream,
 };
 use bytestring::ByteString;
@@ -12,12 +12,10 @@ use mongodb::{
   change_stream::{ChangeStream, event::ChangeStreamEvent},
   options::FullDocumentType,
 };
-use mpsc::Sender;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use sse::Event;
 use std::{fmt::Debug, future::IntoFuture, sync::Arc, time::Duration};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info, warn};
 
@@ -62,7 +60,7 @@ impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> Broadc
 impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq + for<'a> Deserialize<'a>>
   EventsBroadcaster<T>
 where
-  for<'a> T: Into<ByteString> + From<ByteString>,
+  T: Into<ByteString> + From<ByteString>,
   for<'a> Watch<'a, T>: IntoFuture,
 {
   /// Constructs new broadcaster and spawns ping loop.
@@ -77,8 +75,8 @@ where
     this
   }
 
-  /// Pings clients every 10 seconds to see if they are alive and remove them from the broadcast
-  /// list if not.
+  /// PINGS clients every 10 seconds to see if they are alive.  
+  /// REMOVES them from the broadcast list if not.
   fn spawn_ping(this: Arc<Self>) {
     actix_web::rt::spawn(async move {
       let mut interval = interval(Duration::from_secs(10));
@@ -86,7 +84,6 @@ where
       loop {
         interval.tick().await;
         this.remove_stale_clients().await;
-        // EventsBroadcaster::<T>::remove_stale_clients(&this).await;
       }
     });
   }
@@ -110,8 +107,6 @@ where
       .watch()
       .full_document(FullDocumentType::UpdateLookup)
       .await;
-
-    // let mut change_stream: ChangeStream<ChangeStreamEvent<T>> = thing.into();
 
     let mut change_stream = unsafe {
       // SAFETY: this is safe because we are using the same type as the output of the watch
@@ -155,7 +150,7 @@ where
     for client in clients {
       if client
         .sender
-        .send(sse::Event::Comment("ping".into()))
+        .send(Event::Comment("ping".into()))
         .await
         .is_ok()
       {

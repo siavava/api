@@ -31,32 +31,29 @@
         events.addEventListener("connected", (e) => {
             let elem = document.createElement("p");
             elem.style.color = "green";
+
             let time = new Date().toLocaleTimeString();
-            try {
-                let object = JSON.parse(event.data);
-                elem.innerText = `${time}: ${object.route} = ${object.count}`
-            } catch (e) {
-                let route = targetRoute ? `(${targetRoute})` : `(root)`
-                elem.innerText = `${route}@${time}: CONNECTED`;
-            }
+            let route = targetRoute ? `(${targetRoute})` : `(root)`
+            elem.innerText = `${route}@${time}: CONNECTED`;
 
             root.appendChild(elem);
         })
         events.addEventListener("update", (event) => {
             let elem = document.createElement("p");
+            elem.style.color = "blue";
+
             let time = new Date().toLocaleTimeString();
+
             try {
                 let object = JSON.parse(event.data);
-                elem.innerText = `${time}: ${object.route} = ${object.count}`
+                elem.innerText = `(${object.route})@${time}: ${object.count}`
             } catch (e) {
                 let route = targetRoute ? `(${targetRoute})` : `(root)`
-                elem.innerText = `${route}@${time}: ${event.data}`;
+                elem.innerText = `ERROR: ${route}@${time}: ${event.data}`;
             }
 
             root.appendChild(elem);
         })
-
-        // events.addEventListener
     </script>
 </body>
 </html>
