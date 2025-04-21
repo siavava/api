@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, future::IntoFuture, sync::Arc, time::Duration};
 use tokio::sync::mpsc::{self, Sender};
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 pub struct EventsBroadcaster<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> {
   mutex: Mutex<BroadcasterInner<T>>,
@@ -103,28 +103,26 @@ where
       lock.collection.clone()
     };
 
-    let thing: <Watch<'_, T> as IntoFuture>::Output = collection
+    let watch_handle: <Watch<'_, T> as IntoFuture>::Output = collection
       .watch()
       .full_document(FullDocumentType::UpdateLookup)
       .await;
 
     let mut change_stream = unsafe {
       // SAFETY: this is safe because we are using the same type as the output of the watch
-      std::mem::transmute_copy::<_, ChangeStream<ChangeStreamEvent<T>>>(&thing)
+      std::mem::transmute_copy::<_, ChangeStream<ChangeStreamEvent<T>>>(&watch_handle)
     };
 
-    std::mem::forget(thing);
+    std::mem::forget(watch_handle);
 
     while let Some(change) = change_stream.next().await {
       match change {
         Ok(event) => {
-          // get the data
           let data = event.full_document;
 
           match data {
             Some(data) => {
               // broadcast the change to appropriate clients
-              debug!("Broadcasting change: {:?}", data);
               self.broadcast(&data).await;
             }
             None => {
