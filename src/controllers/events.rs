@@ -171,6 +171,8 @@ where
       .await
       .unwrap();
 
+    // self.mutex.lock().collection.find(sender.filter)
+
     info!("connected client with filter: {:?}", filter);
     self.mutex.lock().clients.push(sender!(tx, filter));
 

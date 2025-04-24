@@ -21,8 +21,8 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
 
 #[derive(Deserialize, Debug)]
 struct PageViewRequestData {
-  target_route: Option<String>,
-  request_route: Option<String>,
+  requested: Option<String>,
+  location: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -39,13 +39,13 @@ async fn get_views(
   let db_client = &app_state.db_client;
 
   let PageViewRequestData {
-    target_route,
-    request_route,
+    requested,
+    location,
   } = request_data.into_inner();
 
-  match (target_route, request_route) {
-    (Some(target_str), Some(request_str)) => {
-      let res = views![&db_client, &target_str, &request_str];
+  match (requested, location) {
+    (Some(requested_str), Some(location_str)) => {
+      let res = views![&db_client, &requested_str, &location_str];
       Ok(HttpResponse::Ok().json(res))
     }
     (None, None) => {
@@ -67,16 +67,16 @@ async fn delete_views(
 ) -> Result<HttpResponse, ActixError> {
   let db_client = &app_state.db_client;
   let request_data = request_data.into_inner();
-  match request_data.target_route {
-    Some(target_route) => {
+  match request_data.requested {
+    Some(requested_str) => {
       // delete views
-      let res = views::delete_views(db_client, &target_route).await;
+      let res = views::delete_views(db_client, &requested_str).await;
       match res {
         Ok(_) => Ok(HttpResponse::Ok().json("Deleted")),
         Err(_) => Ok(HttpResponse::InternalServerError().json("Error")),
       }
     }
-    None => Ok(HttpResponse::BadRequest().json("Invalid Request: You must provide target_route")),
+    None => Ok(HttpResponse::BadRequest().json("Invalid Request: You must provide `requested`")),
   }
 }
 
@@ -113,11 +113,11 @@ async fn watch_views(
 ) -> impl Responder {
   let filter = {
     let Query(PageViewRequestData {
-      target_route,
-      request_route: _,
+      requested,
+      location: _,
     }) = request_data;
 
-    match target_route {
+    match requested {
       // if it's a valid route, return with that route
       Some(route) => PageViews::with(route),
 

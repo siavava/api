@@ -17,14 +17,14 @@
     <script>
         // get query param
         const urlParams = new URLSearchParams(window.location.search);
-        const targetRoute = urlParams.get('target_route');
-        const requestRoute = urlParams.get('request_route');
+        const requested = urlParams.get('requested');
+        const location = urlParams.get('request_route');
         let root = document.getElementById("root");
 
         let path = `/views/watch/`;
         
-        if (targetRoute && requestRoute) {
-            path += `?target_route=${targetRoute}&request_route=/${requestRoute}`
+        if (requested && location) {
+            path += `?requested=${requested}&location=/${location}`
         }
         
         let events = new EventSource(path);
@@ -33,7 +33,7 @@
             elem.style.color = "green";
 
             let time = new Date().toLocaleTimeString();
-            let route = targetRoute ? `(${targetRoute})` : `(root)`
+            let route = requested ? `(${requested})` : `(root)`
             elem.innerText = `${route}@${time}: CONNECTED`;
 
             root.appendChild(elem);
@@ -48,7 +48,7 @@
                 let object = JSON.parse(event.data);
                 elem.innerText = `(${object.route})@${time}: ${object.count}`
             } catch (e) {
-                let route = targetRoute ? `(${targetRoute})` : `(root)`
+                let route = requested ? `(${requested})` : `(root)`
                 elem.innerText = `ERROR: ${route}@${time}: ${event.data}`;
             }
 

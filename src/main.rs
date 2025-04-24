@@ -1,9 +1,7 @@
 use actix_cors::Cors;
 use actix_web::{
-  App, HttpServer, Responder,
-  dev::RequestHead,
-  get,
-  http::{self, header::HeaderValue},
+  App, HttpServer, Responder, get,
+  http::{self},
   middleware::{Logger, NormalizePath, TrailingSlash},
   web,
 };
@@ -70,6 +68,7 @@ async fn main() -> Result<()> {
       .wrap(
         Cors::default()
           .allowed_origin("https://amittai.space")
+          .allowed_origin("http://localhost:3000")
           .allowed_origin_fn(|origin, _req_head| origin.as_bytes().ends_with(b"amittai.space"))
           // .allowed_origin_fn(verify_cors)
           .allowed_methods(vec!["GET", "PUT", "POST", "DELETE"])
@@ -88,22 +87,22 @@ async fn main() -> Result<()> {
   .await
 }
 
-/**
-  CORS verification function
+// /**
+//   CORS verification function
 
-  ### Example
-  ```rust
-  let origin = HeaderValue::from_static("http://localhost:3000");
-  let req_head = RequestHead::default();
-  let result = verify_cors(&origin, &req_head);
-  assert_eq!(result, true);
-  ```
-*/
-fn verify_cors(origin: &HeaderValue, _req_head: &RequestHead) -> bool {
-  let allowed_origins = ["amittai.studio", "amittai.space", "localhost"];
-  let origin = origin.to_str();
+//   ### Example
+//   ```rust
+//   let origin = HeaderValue::from_static("http://localhost:3000");
+//   let req_head = RequestHead::default();
+//   let result = verify_cors(&origin, &req_head);
+//   assert_eq!(result, true);
+//   ```
+// */
+// fn verify_cors(origin: &HeaderValue, _req_head: &RequestHead) -> bool {
+//   let allowed_origins = ["amittai.studio", "amittai.space", "localhost"];
+//   let origin = origin.to_str();
 
-  matches!(origin, Ok(val) if allowed_origins
-    .iter()
-    .any(|allowed_origin| val.contains(allowed_origin)))
-}
+//   matches!(origin, Ok(val) if allowed_origins
+//     .iter()
+//     .any(|allowed_origin| val.contains(allowed_origin)))
+// }

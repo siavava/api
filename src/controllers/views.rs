@@ -122,11 +122,11 @@ pub async fn get_all_views(client: &Client) -> Result<Vec<PageViews>, DbError> {
 
 #[macro_export]
 macro_rules! views {
-  ($client:expr, $target_route:expr, $request_route:expr) => {
+  ($client:expr, $requested:expr, $location:expr) => {
     $crate::controllers::views::get_views(
       $client,
-      $target_route,
-      if $target_route == $request_route {
+      $requested,
+      if $requested == $location {
         $crate::controllers::views::ViewsIncrement::INCREMENT
       } else {
         $crate::controllers::views::ViewsIncrement::NOINCREMENT
