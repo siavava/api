@@ -67,9 +67,7 @@ async fn main() -> Result<()> {
       .wrap(NormalizePath::new(TrailingSlash::Always))
       .wrap(
         Cors::default()
-          .allowed_origin("https://amittai.space")
-          .allowed_origin("http://localhost:3000")
-          .allowed_origin_fn(|origin, _req_head| origin.as_bytes().ends_with(b"amittai.space"))
+          .allow_any_origin() // <--- this
           // .allowed_origin_fn(verify_cors)
           .allowed_methods(vec!["GET", "PUT", "POST", "DELETE"])
           .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
