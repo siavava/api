@@ -24,7 +24,7 @@
         let path = `/views/watch/`;
         
         if (requestedRoute && location) {
-            path += `?requested=${requestedRoute}&location=${location}`
+            path += `?requested=${requestedRoute}&location=${locationRoute}`
         }
         
         let events = new EventSource(path);
