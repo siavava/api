@@ -94,7 +94,7 @@ where
     });
   }
 
-  /// # title
+  /// # `listen`
   /// Listens to collection for changes and broadcasts them to all clients.  
   /// This is a blocking call and should be run in a separate thread.
   pub async fn listen(&self) {
@@ -103,7 +103,7 @@ where
       lock.collection.clone()
     };
 
-    let watch_handle: <Watch<'_, T> as IntoFuture>::Output = collection
+    let watch_handle = collection
       .watch()
       .full_document(FullDocumentType::UpdateLookup)
       .await;
@@ -160,7 +160,7 @@ where
 
     self.mutex.lock().clients = ok_clients;
 
-    // self.log_listeners().await;
+    // ? self.log_listeners().await;
   }
 
   /// Registers client with broadcaster, returning an SSE response body.
@@ -176,7 +176,7 @@ where
     info!("connected client with filter: {:?}", filter);
     self.mutex.lock().clients.push(sender!(tx, filter));
 
-    // self.log_listeners().await;
+    // ? self.log_listeners().await;
 
     Sse::from_infallible_receiver(rx)
   }
@@ -187,7 +187,7 @@ where
 
     let send_futures = clients.iter().filter_map(|client| {
       let SenderData { sender, filter } = client;
-      if filter == &T::default() || msg == filter {
+      if msg == filter || filter == &T::default() {
         info!("notifying client for filter: {:?}", filter);
         Some(sender.send(sse::Data::new(msg.clone()).event("update").into()))
       } else {
@@ -195,7 +195,7 @@ where
       }
     });
 
-    let _ = future::join_all(send_futures).await;
+    future::join_all(send_futures).await;
   }
 
   pub async fn log_listeners(&self) {
