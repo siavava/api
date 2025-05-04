@@ -123,15 +123,15 @@ where
           match data {
             Some(data) => {
               // broadcast the change to appropriate clients
+              info!("notifying event");
               self.broadcast(&data).await;
             }
             None => {
               warn!("No data in change event");
             }
           }
-
-          // self.broadcast(&data).await;
         }
+
         Err(e) => {
           warn!("Error watching changes: {:?}", e);
         }
