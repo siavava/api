@@ -118,12 +118,10 @@ where
     while let Some(change) = change_stream.next().await {
       match change {
         Ok(event) => {
-          let data = event.full_document;
-
-          match data {
+          match event.full_document {
             Some(data) => {
               // broadcast the change to appropriate clients
-              info!("notifying event");
+              info!("notifying about event");
               self.broadcast(&data).await;
             }
             None => {
@@ -146,12 +144,9 @@ where
     let mut ok_clients = Vec::new();
 
     for client in clients {
-      if client
-        .sender
-        .send(Event::Comment("ping".into()))
-        .await
-        .is_ok()
-      {
+      let status = client.sender.send(Event::Comment("ping".into())).await;
+
+      if status.is_ok() {
         ok_clients.push(client.clone());
       } else {
         info!("removing stale client for {:?}", client.filter);
