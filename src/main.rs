@@ -56,9 +56,9 @@ async fn main() -> Result<()> {
   let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
   client_options.server_api = Some(server_api);
 
-  let db_client = Client::with_options(client_options.clone()).unwrap();
+  let db_client = Client::with_options(client_options).unwrap();
 
-  let app_state = app_state!(db_client.clone());
+  let app_state = app_state!(db_client);
 
   info!("STARTING APP");
   HttpServer::new(move || {
