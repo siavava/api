@@ -1,59 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Server-sent events</title>
-    <style>
-        p {
-            margin-top: 0.5em;
-            margin-bottom: 0.5em;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Server-sent events</title>
+  <style>
+    p {
+      margin-top: 0.5em;
+      margin-bottom: 0.5em;
+    }
+  </style>
 </head>
+
 <body>
-    <div id="root" style="font-family: monospace"></div>
-    <script>
-        // get query param
-        const urlParams = new URLSearchParams(window.location.search);
-        const requestedRoute = urlParams.get('requested');
-        const locationRoute = urlParams.get('location');
-        let root = document.getElementById("root");
+  <div id="root" style="font-family: monospace"></div>
+  <script>
+    // get query param
+    const urlParams = new URLSearchParams(window.location.search);
+    const requestedRoute = urlParams.get('requested');
+    const locationRoute = urlParams.get('location');
+    let root = document.getElementById("root");
 
-        let path = `/views/watch/`;
-        
-        if (requestedRoute && location) {
-            path += `?requested=${requestedRoute}&location=${locationRoute}`
-        }
-        
-        let events = new EventSource(path);
-        events.addEventListener("connected", (e) => {
-            let elem = document.createElement("p");
-            elem.style.color = "green";
+    let path = `/views/watch/`;
 
-            let time = new Date().toLocaleTimeString();
-            let route = requestedRoute ? `(${requestedRoute})` : `(root)`
-            elem.innerText = `${route}@${time}: CONNECTED`;
+    if (requestedRoute && location) {
+      path += `?requested=${requestedRoute}&location=${locationRoute}`
+    }
 
-            root.appendChild(elem);
-        })
-        events.addEventListener("update", (event) => {
-            let elem = document.createElement("p");
-            elem.style.color = "blue";
+    const firstElem = document.createElement('p');
+    firstElem.style.color = "red";
+    firstElem.innerText = `LOCATION: ${locationRoute}; REQUESTED: ${requestedRoute}`;
 
-            let time = new Date().toLocaleTimeString();
+    root.appendChild(firstElem);
 
-            try {
-                let object = JSON.parse(event.data);
-                elem.innerText = `(${object.route})@${time}: ${object.count}`
-            } catch (e) {
-                let route = requestedRoute ? `(${requestedRoute})` : `(root)`
-                elem.innerText = `ERROR: ${route}@${time}: ${event.data}`;
-            }
+    let events = new EventSource(path);
+    events.addEventListener("connected", (e) => {
+      let elem = document.createElement("p");
+      elem.style.color = "green";
 
-            root.appendChild(elem);
-        })
-    </script>
+      let time = new Date().toLocaleTimeString();
+      let route = requestedRoute ? `(${requestedRoute})` : `(root)`
+      elem.innerText = `${route}@${time}: CONNECTED`;
+
+      root.appendChild(elem);
+    })
+    events.addEventListener("update", (event) => {
+      let elem = document.createElement("p");
+      elem.style.color = "blue";
+
+      let time = new Date().toLocaleTimeString();
+
+      try {
+        let object = JSON.parse(event.data);
+        elem.innerText = `(${object.route})@${time}: ${object.count}`
+      } catch (e) {
+        let route = requestedRoute ? `(${requestedRoute})` : `(root)`
+        elem.innerText = `ERROR: ${route}@${time}: ${event.data}`;
+      }
+
+      root.appendChild(elem);
+    })
+    events.addEventListener("listeners", (event) => {
+      console.log(`EVENT: ${event}`)
+      let elem = document.createElement("p");
+      elem.style.color = "purple";
+
+      let time = new Date().toLocaleTimeString();
+
+      try {
+        let object = JSON.parse(event.data);
+        elem.innerText = `LISTENERS: ${object.count}`
+      } catch (e) {
+        let route = requestedRoute ? `(${requestedRoute})` : `(root)`
+        elem.innerText = `ERROR: ${route}@${time}: ${event.data}`;
+      }
+
+      root.appendChild(elem);
+    })
+  </script>
 </body>
+
 </html>

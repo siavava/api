@@ -21,6 +21,7 @@ use tracing::{info, warn};
 
 pub struct EventsBroadcaster<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> {
   mutex: Mutex<BroadcasterInner<T>>,
+  notify_listener_count: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +47,24 @@ struct BroadcasterInner<T: 'static + Debug + Clone + Send + Sync + Serialize + D
   collection: Collection<T>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ActiveListeners {
+  count: usize,
+}
+
+// convert PagViews to bytestring
+impl std::convert::From<ActiveListeners> for ByteString {
+  fn from(page_views: ActiveListeners) -> Self {
+    // let PageViews { route, count } = page_views;
+    // let bytes_str = format!("{{route:\"{route}\",count:\"{count}\"}}",);
+    let bytes_str = serde_json::to_string(&page_views);
+    match bytes_str {
+      Ok(value) => ByteString::from(value),
+      Err(_) => ByteString::default(),
+    }
+  }
+}
+
 impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> BroadcasterInner<T> {
   fn new(collection: Collection<T>) -> Self {
     BroadcasterInner {
@@ -64,9 +83,10 @@ where
   for<'a> Watch<'a, T>: IntoFuture,
 {
   /// Constructs new broadcaster and spawns ping loop.
-  pub fn create(collection: Collection<T>) -> Arc<Self> {
+  pub fn create(collection: Collection<T>, notify_listener_count: bool) -> Arc<Self> {
     let this = Arc::new(EventsBroadcaster {
       mutex: Mutex::new(BroadcasterInner::new(collection)),
+      notify_listener_count,
     });
 
     EventsBroadcaster::spawn_ping(Arc::clone(&this));
@@ -140,6 +160,7 @@ where
   /// Removes all non-responsive clients from broadcast list.
   async fn remove_stale_clients(&self) {
     let clients = self.mutex.lock().clients.clone();
+    let prev_clients_count = clients.len();
 
     let mut ok_clients = Vec::new();
 
@@ -153,9 +174,31 @@ where
       }
     }
 
+    let ok_clients_count = ok_clients.len();
     self.mutex.lock().clients = ok_clients;
 
+    if ok_clients_count != prev_clients_count {
+      self.maybe_notify_listener_count().await;
+    }
+
     // ? self.log_listeners().await;
+  }
+
+  pub async fn maybe_notify_listener_count(&self) {
+    if self.notify_listener_count {
+      let clients = self.mutex.lock().clients.clone();
+      let count = clients.len(); //.to_string();
+      let send_futures = clients.iter().map(|client| {
+        let SenderData { sender, filter: _ } = client;
+        sender.send(
+          sse::Data::new(ActiveListeners { count })
+            .event("count")
+            .into(),
+        )
+      });
+
+      future::join_all(send_futures).await;
+    }
   }
 
   /// Registers client with broadcaster, returning an SSE response body.
@@ -172,6 +215,7 @@ where
     self.mutex.lock().clients.push(sender!(tx, filter));
 
     // ? self.log_listeners().await;
+    self.maybe_notify_listener_count().await;
 
     Sse::from_infallible_receiver(rx)
   }
