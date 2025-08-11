@@ -99,7 +99,7 @@ where
   /// REMOVES them from the broadcast list if not.
   fn spawn_ping(this: Arc<Self>) {
     actix_web::rt::spawn(async move {
-      let mut interval = interval(Duration::from_secs(10));
+      let mut interval = interval(Duration::from_secs(3));
 
       loop {
         interval.tick().await;
