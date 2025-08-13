@@ -19,6 +19,11 @@ use tokio::sync::mpsc::{self, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{info, warn};
 
+/// How often heartbeat pings are sent.
+///
+/// Should be half (or less) of the acceptable client timeout.
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(3);
+
 pub struct EventsBroadcaster<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> {
   mutex: Mutex<BroadcasterInner<T>>,
   notify_listener_count: bool,
@@ -99,7 +104,7 @@ where
   /// REMOVES them from the broadcast list if not.
   fn spawn_ping(this: Arc<Self>) {
     actix_web::rt::spawn(async move {
-      let mut interval = interval(Duration::from_secs(3));
+      let mut interval = interval(HEARTBEAT_INTERVAL);
 
       loop {
         interval.tick().await;
