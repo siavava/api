@@ -10,7 +10,7 @@ use mongodb::{
   Client,
   options::{ClientOptions, ServerApi, ServerApiVersion},
 };
-use server::{AppState, app_state, routes::views};
+use server::{AppState, app_state, routes};
 use std::{env, io::Result};
 use tracing::{error, info};
 
@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
       .app_data(web::Data::<AppState>::new(app_state.clone()))
       .service(health_check)
       .service(greet)
-      .configure(views::register)
+      .configure(routes::register)
   })
   // .bind(("127.0.0.1", port))?
   .bind(("0.0.0.0", port))?
