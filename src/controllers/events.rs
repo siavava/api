@@ -72,7 +72,7 @@ impl std::convert::From<ActiveListeners> for ByteString {
 
 impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> BroadcasterInner<T> {
   fn new(collection: Collection<T>) -> Self {
-    BroadcasterInner {
+    Self {
       clients: Vec::new(),
       collection,
     }

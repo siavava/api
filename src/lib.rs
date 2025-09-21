@@ -19,7 +19,7 @@ impl AppState {
     let views_collection = views::get_collection(&db_client);
     let view_events_handler = EventsBroadcaster::<PageViews>::create(views_collection, true);
 
-    AppState {
+    Self {
       db_client,
       view_events_handler,
     }
