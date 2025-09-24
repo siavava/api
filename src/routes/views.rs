@@ -133,5 +133,5 @@ async fn watch_views(
 
 #[get("/watch/test/")]
 async fn watch_views_test() -> impl Responder {
-  Html::new(include_str!("../index.html").to_owned())
+  Html::new(include_str!("../static/watch-views.html").to_owned())
 }
