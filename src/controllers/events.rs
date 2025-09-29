@@ -59,10 +59,10 @@ struct ActiveListeners {
 
 // convert PagViews to bytestring
 impl std::convert::From<ActiveListeners> for ByteString {
-  fn from(page_views: ActiveListeners) -> Self {
+  fn from(listeners: ActiveListeners) -> Self {
     // let PageViews { route, count } = page_views;
     // let bytes_str = format!("{{route:\"{route}\",count:\"{count}\"}}",);
-    let bytes_str = serde_json::to_string(&page_views);
+    let bytes_str = serde_json::to_string(&listeners);
     match bytes_str {
       Ok(value) => ByteString::from(value),
       Err(_) => ByteString::default(),
@@ -73,7 +73,7 @@ impl std::convert::From<ActiveListeners> for ByteString {
 impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> BroadcasterInner<T> {
   fn new(collection: Collection<T>) -> Self {
     Self {
-      clients: Vec::new(),
+      clients: vec![],
       collection,
     }
   }
@@ -167,7 +167,7 @@ where
     let clients = self.mutex.lock().clients.clone();
     let prev_clients_count = clients.len();
 
-    let mut ok_clients = Vec::new();
+    let mut ok_clients = vec![];
 
     for client in clients {
       let status = client.sender.send(Event::Comment("ping".into())).await;
