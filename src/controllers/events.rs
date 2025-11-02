@@ -94,8 +94,8 @@ where
       notify_listener_count,
     });
 
-    EventsBroadcaster::spawn_ping(Arc::clone(&this));
-    EventsBroadcaster::spawn_listen(Arc::clone(&this));
+    Self::spawn_ping(Arc::clone(&this));
+    Self::spawn_listen(Arc::clone(&this));
 
     this
   }

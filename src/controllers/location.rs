@@ -11,11 +11,18 @@ const DB_NAME: &str = if cfg!(debug_assertions) {
 };
 
 const COLL_NAME: &str = "location";
+const HISTORY_COLL_NAME: &str = "location_history";
 
 pub fn get_collection(client: &Client) -> mongodb::Collection<LocationData> {
   client
     .database(DB_NAME)
     .collection::<LocationData>(COLL_NAME)
+}
+
+pub fn get_history_collection(client: &Client) -> mongodb::Collection<LocationData> {
+  client
+    .database(DB_NAME)
+    .collection::<LocationData>(HISTORY_COLL_NAME)
 }
 
 pub async fn get_last_and_update(
@@ -25,6 +32,9 @@ pub async fn get_last_and_update(
 ) -> Result<LocationData, DbError> {
   let collection = get_collection(client);
   let filter = doc! {};
+
+  update_history(client, city, state);
+
   let res = {
     let update = doc! {
       "$set": {
@@ -32,8 +42,6 @@ pub async fn get_last_and_update(
         "state": state,
       }
     };
-
-    info!("UPDATE: {:?}", update);
 
     collection
       .find_one_and_update(filter, update)
@@ -51,6 +59,29 @@ pub async fn get_last_and_update(
     },
     Err(e) => Err(e),
   }
+}
+
+pub fn update_history(client: &Client, city: &str, state: &str) {
+  let history_collection = get_history_collection(client);
+  
+  let filter = doc! {
+    "city": city,
+    "state": state,
+  };
+
+  let update = doc! {
+    "$set": {
+      "timestamp": mongodb::bson::DateTime::now(),
+    },
+    "$inc": { "count": 1 }
+  };
+
+  actix_web::rt::spawn(async move {
+    let _ = history_collection
+      .update_one(filter, update)
+      .upsert(true)
+      .await;
+  });
 }
 
 pub async fn get_last(client: &Client) -> Result<LocationData, DbError> {
