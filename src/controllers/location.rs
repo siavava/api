@@ -38,13 +38,10 @@ pub async fn get_last_and_update<'a>(
     Box::pin(|| update_last_location(client, city, state).boxed_local()),
   ];
 
-  // let runners: Map<_, _> = fetchers.into_iter().map(|f| f());
+  let runners = fetchers.into_iter().map(|f| f());
 
-  // join all fetchers
-  let [_, last] = futures::future::join_all(fetchers.into_iter().map(|f| f()))
-    .await
-    .try_into()
-    .unwrap();
+  // run all and return the return-value of second future
+  let [_, last] = futures::future::join_all(runners).await.try_into().unwrap();
 
   last
 }
