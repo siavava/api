@@ -1,6 +1,5 @@
 use crate::models::location::*;
 use mongodb::{Client, bson::doc, error::Error as DbError};
-use tracing::info;
 
 // if in production mode, use 'feed' database
 // otherwise, use 'feed-dev' database
@@ -30,27 +29,50 @@ pub async fn get_last_and_update(
   city: &str,
   state: &str,
 ) -> Result<LocationData, DbError> {
-  let collection = get_collection(client);
-  let filter = doc! {};
+  update_location_history(client, city, state).await;
+  update_last_location(client, city, state).await
+}
 
-  update_history(client, city, state);
+pub async fn update_location_history(client: &Client, city: &str, state: &str) {
+  let history_collection = get_history_collection(client);
 
-  let res = {
-    let update = doc! {
-      "$set": {
+  let _ = history_collection
+    .update_one(
+      doc! {
         "city": city,
         "state": state,
-      }
-    };
+      },
+      doc! {
+        "$set": {
+          "timestamp": mongodb::bson::DateTime::now(),
+        },
+        "$inc": { "count": 1 }
+      },
+    )
+    .upsert(true)
+    .await;
+}
 
-    collection
-      .find_one_and_update(filter, update)
-      .upsert(true)
-      .return_document(mongodb::options::ReturnDocument::Before)
-      .await
-  };
+pub async fn update_last_location(
+  client: &Client,
+  city: &str,
+  state: &str,
+) -> Result<LocationData, DbError> {
+  let collection = get_collection(client);
 
-  info!("res: {:?}", res);
+  let res = collection
+    .find_one_and_update(
+      doc! {},
+      doc! {
+        "$set": {
+          "city": city,
+          "state": state,
+        }
+      },
+    )
+    .upsert(true)
+    .return_document(mongodb::options::ReturnDocument::Before)
+    .await;
 
   match res {
     Ok(val) => match val {
@@ -59,29 +81,6 @@ pub async fn get_last_and_update(
     },
     Err(e) => Err(e),
   }
-}
-
-pub fn update_history(client: &Client, city: &str, state: &str) {
-  let history_collection = get_history_collection(client);
-  
-  let filter = doc! {
-    "city": city,
-    "state": state,
-  };
-
-  let update = doc! {
-    "$set": {
-      "timestamp": mongodb::bson::DateTime::now(),
-    },
-    "$inc": { "count": 1 }
-  };
-
-  actix_web::rt::spawn(async move {
-    let _ = history_collection
-      .update_one(filter, update)
-      .upsert(true)
-      .await;
-  });
 }
 
 pub async fn get_last(client: &Client) -> Result<LocationData, DbError> {

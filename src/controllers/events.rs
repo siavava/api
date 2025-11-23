@@ -81,10 +81,20 @@ impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> Broadc
 
 // impl
 
-impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq + for<'a> Deserialize<'a>>
-  EventsBroadcaster<T>
+impl<
+  T: Debug
+    // + 'static
+    + Clone
+    + Send
+    + Sync
+    + Serialize
+    + Default
+    + Eq
+    + for<'a> Deserialize<'a>
+    + Into<ByteString>
+    + From<ByteString>,
+> EventsBroadcaster<T>
 where
-  T: Into<ByteString> + From<ByteString>,
   for<'a> Watch<'a, T>: IntoFuture,
 {
   /// Constructs new broadcaster and spawns ping loop.
@@ -100,7 +110,7 @@ where
     this
   }
 
-  /// PINGS clients every 10 seconds to see if they are alive.  
+  /// PINGS clients every 10 seconds to see if they are alive.
   /// REMOVES them from the broadcast list if not.
   fn spawn_ping(this: Arc<Self>) {
     actix_web::rt::spawn(async move {
@@ -120,7 +130,7 @@ where
   }
 
   /// # `listen`
-  /// Listens to collection for changes and broadcasts them to all clients.  
+  /// Listens to collection for changes and broadcasts them to all clients.
   /// This is a blocking call and should be run in a separate thread.
   pub async fn listen(&self) {
     let collection = {
