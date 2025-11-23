@@ -33,16 +33,17 @@ pub async fn get_last_and_update<'a>(
   city: &'a str,
   state: &'a str,
 ) -> Result<LocationData, DbError> {
-  let fetchers: Vec<Pin<Box<dyn Fn() -> LocalBoxFuture<'a, _>>>> = vec![
-    Box::pin(|| update_location_history(client, city, state).boxed_local()),
-    Box::pin(|| update_last_location(client, city, state).boxed_local()),
-  ];
+  let runners = {
+    let fetchers: Vec<Pin<Box<dyn Fn() -> LocalBoxFuture<'a, _>>>> = vec![
+      Box::pin(|| update_location_history(client, city, state).boxed_local()),
+      Box::pin(|| update_last_location(client, city, state).boxed_local()),
+    ];
 
-  let runners = fetchers.into_iter().map(|f| f());
+    fetchers.into_iter().map(|f| f())
+  };
 
   // run all and return the return-value of second future
   let [_, last] = futures::future::join_all(runners).await.try_into().unwrap();
-
   last
 }
 
