@@ -1,4 +1,4 @@
-use std::{iter::Map, pin::Pin};
+use std::pin::Pin;
 
 use crate::models::location::*;
 use futures::{FutureExt, future::LocalBoxFuture};
