@@ -17,6 +17,9 @@ pub struct LocationData {
   pub state: String,
 }
 
+unsafe impl Sync for LocationData {}
+unsafe impl Send for LocationData {}
+
 // impl debug for Views
 impl std::fmt::Debug for LocationData {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

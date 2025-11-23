@@ -6,7 +6,7 @@ use actix_web::{
 };
 use mongodb::{Client, bson::doc};
 use serde::Deserialize;
-use tracing::info;
+
 
 // function to inject routes
 pub fn register(cfg: &mut actix_web::web::ServiceConfig) {

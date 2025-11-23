@@ -1,4 +1,8 @@
+use std::{iter::Map, pin::Pin};
+
 use crate::models::location::*;
+use futures::{FutureExt, future::LocalBoxFuture};
+use log::info;
 use mongodb::{Client, bson::doc, error::Error as DbError};
 
 // if in production mode, use 'feed' database
@@ -24,17 +28,35 @@ pub fn get_history_collection(client: &Client) -> mongodb::Collection<LocationDa
     .collection::<LocationData>(HISTORY_COLL_NAME)
 }
 
-pub async fn get_last_and_update(
-  client: &Client,
-  city: &str,
-  state: &str,
+pub async fn get_last_and_update<'a>(
+  client: &'a Client,
+  city: &'a str,
+  state: &'a str,
 ) -> Result<LocationData, DbError> {
-  update_location_history(client, city, state).await;
-  update_last_location(client, city, state).await
+  let fetchers: Vec<Pin<Box<dyn Fn() -> LocalBoxFuture<'a, _>>>> = vec![
+    Box::pin(|| update_location_history(client, city, state).boxed_local()),
+    Box::pin(|| update_last_location(client, city, state).boxed_local()),
+  ];
+
+  // let runners: Map<_, _> = fetchers.into_iter().map(|f| f());
+
+  // join all fetchers
+  let [_, last] = futures::future::join_all(fetchers.into_iter().map(|f| f()))
+    .await
+    .try_into()
+    .unwrap();
+
+  last
 }
 
-pub async fn update_location_history(client: &Client, city: &str, state: &str) {
+pub async fn update_location_history<'a>(
+  client: &'a Client,
+  city: &'a str,
+  state: &'a str,
+) -> Result<LocationData, DbError> {
   let history_collection = get_history_collection(client);
+
+  info!("UPDATING LOCATION HISTORY");
 
   let _ = history_collection
     .update_one(
@@ -51,14 +73,19 @@ pub async fn update_location_history(client: &Client, city: &str, state: &str) {
     )
     .upsert(true)
     .await;
+
+  // dummy return, we don't care about this value.
+  Ok(LocationData::default())
 }
 
-pub async fn update_last_location(
-  client: &Client,
-  city: &str,
-  state: &str,
+pub async fn update_last_location<'a>(
+  client: &'a Client,
+  city: &'a str,
+  state: &'a str,
 ) -> Result<LocationData, DbError> {
   let collection = get_collection(client);
+
+  info!("UPDATING LAST LOCATION");
 
   let res = collection
     .find_one_and_update(
