@@ -7,7 +7,6 @@ use actix_web::{
 use mongodb::{Client, bson::doc};
 use serde::Deserialize;
 
-
 // function to inject routes
 pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(
@@ -110,14 +109,12 @@ async fn insert_views(
 #[get("/watch/")]
 async fn watch_views(
   app_state: Data<AppState>,
-  request_data: Query<PageViewRequestData>,
+  Query(PageViewRequestData {
+    requested,
+    location: _,
+  }): Query<PageViewRequestData>,
 ) -> impl Responder {
   let filter = {
-    let Query(PageViewRequestData {
-      requested,
-      location: _,
-    }) = request_data;
-
     match requested {
       // if it's a valid route, return with that route
       Some(route) => PageViews::with(route),
@@ -134,5 +131,5 @@ async fn watch_views(
 
 #[get("/watch/test/")]
 async fn watch_views_test() -> impl Responder {
-  Html::new(include_str!("../static/watch-views.html").to_owned())
+  Html::new(include_str!("../static/watch-views.html"))
 }
