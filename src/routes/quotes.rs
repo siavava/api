@@ -18,7 +18,6 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
       .service(test_quotes)
       .service(test),
   );
-  info!("registered quote routes");
 }
 
 #[derive(Deserialize, Debug)]
