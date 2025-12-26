@@ -3,14 +3,13 @@ use actix_web::{
   App, HttpServer, Responder, get,
   http::{self},
   middleware::{Logger, NormalizePath, TrailingSlash},
-  web::{self, Html},
+  web::{self},
 };
 use dotenv::dotenv;
 use mongodb::{
   Client,
   options::{ClientOptions, ServerApi, ServerApiVersion},
 };
-use rand;
 use server::{AppState, app_state, routes};
 use std::{env, io::Result};
 use tracing::{error, info};
@@ -71,7 +70,6 @@ async fn main() -> Result<()> {
           .max_age(3600),
       )
       .app_data(web::Data::<AppState>::new(app_state.clone()))
-      .service(quotidian)
       .service(greet)
       .configure(routes::register)
   })
@@ -80,79 +78,3 @@ async fn main() -> Result<()> {
   .run()
   .await
 }
-
-#[get("/")]
-async fn quotidian() -> impl Responder {
-  let raw_data = include_str!("static/quotes.json");
-  let json: serde_json::Value =
-    serde_json::from_str(raw_data).expect("JSON was not well-formatted");
-
-  let quotes = json["quotes"].as_array().expect("Quotes not found in JSON");
-
-  // return random element from quotes
-  let random_quote = &quotes[rand::random::<usize>() % quotes.len()];
-
-  let quote_text = random_quote["text"].as_str();
-  let quote_author = random_quote["author"].as_str();
-
-  match (quote_text, quote_author) {
-    (Some(quote), Some(author)) => {
-      // format!("{} <br> - {}", quote, author)
-      Html::new(format!(
-        r#"
-        <body
-          style="
-            margin: 0; padding: 0; width: 100svw; height: 100svh;
-            background-color: #111110; color: #d9d8e1e6;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: system-ui, sans-serif;
-          ">
-
-          <div style="
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
-            align-items: flex-end;
-            width: min(90%, 44ch);
-            // border: 1px solid red;
-            padding: 2rem;
-            line-height: 1.5;
-          ">
-            <div style="width: 100%; text-align: left;">
-              {quote}
-            </div>
-            <div style="width: 100%; text-align: right; display: block;">
-              ~ {author}
-            </div>
-          </div>
-        </body>
-        "#
-      ))
-    }
-    _ => Html::new("No quote found"),
-  }
-
-  // "These violent delights have violent ends."
-}
-
-// /**
-//   CORS verification function
-
-//   ### Example
-//   ```rust
-//   let origin = HeaderValue::from_static("http://localhost:3000");
-//   let req_head = RequestHead::default();
-//   let result = verify_cors(&origin, &req_head);
-//   assert_eq!(result, true);
-//   ```
-// */
-// fn verify_cors(origin: &HeaderValue, _req_head: &RequestHead) -> bool {
-//   let allowed_origins = ["amittai.studio", "amittai.space", "localhost"];
-//   let origin = origin.to_str();
-
-//   matches!(origin, Ok(val) if allowed_origins
-//     .iter()
-//     .any(|allowed_origin| val.contains(allowed_origin)))
-// }

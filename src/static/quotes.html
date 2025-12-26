@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>randomness</title>
+  
+  <style>
+  h1:has(~ .container > .text > .link:hover) {
+    animation: focus 0.9s forwards;
+  }
+
+  h1:not(:has(~ .container > .text > .link:hover)) {
+    animation: blur 0.9s forwards;
+  }
+
+  /* button */
+  .container {
+    display: flex;
+    flex: 1;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 16px;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* Responsive design for larger screens */
+  @media (min-width: 1024px) {
+    .container {
+      justify-content: flex-start;
+      padding-bottom: 24px;
+    }
+  }
+
+  .text {
+    display: flex;
+    align-items: baseline;
+    gap: 8px; /* equivalent to gap-x-2 */
+    font-size: 0.8125rem;
+    color: #6b7280; /* equivalent to text-gray-500 */
+  }
+
+  .link {
+    display: flex;
+    align-items: center;
+    border-radius: 0.5rem;
+    padding: 2px 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.3);
+    position: relative;
+    text-decoration: none;
+    transition: color 0.2s;
+    position: relative;
+  }
+
+  .link:hover {
+    color: #0ea5e9;
+  }
+
+  .background {
+    position: absolute;
+    inset: 0;
+    z-index: -10;
+    transform: scale(0.75);
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    opacity: 0;
+    transition: all 0.2s;
+    left: -10%;
+    width: 120%;
+  }
+
+  .link:hover .background {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  .author {
+    color: white;
+  }
+  </style>
+</head>
+
+<body
+  style="
+    margin: 0; padding: 0; width: 100svw; height: 100svh;
+    background-color: #111110; color: #d9d8e1e6;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: system-ui, sans-serif;
+  ">
+
+  <div style="
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    align-items: flex-end;
+    justify-content: center;
+    width: min(90%, 44ch);
+    min-height: 300px;
+    padding: 2rem;
+    line-height: 1.5;
+    position: relative;
+  ">
+    <div id="quote-area" style="width: 100%; text-align: left;">
+      testing quote
+    </div>
+    <div id="author-area" style="width: 100%; text-align: right; display: block; display: none;">
+      testing author
+    </div>
+    <div class="container">
+      <p class="text">
+        <a href="https://amittai.space" class="link">
+          <span class="background"></span>
+          created by&nbsp;<span class="author">amittai</span>
+        </a>
+      </p>
+    </div>
+  </div>
+</body>
+<script lang="js">
+  // throw new Error('API_URL is not defined');
+  // http://localhost:8080
+  console.log('starting script');
+  const API_URL = 'http://localhost:8080/quotes';
+  // const API_URL = 'https://api.amittai.studio/quotes';
+  const quotes = await fetch(API_URL).then(res => res.json());
+  console.log('quotes', quotes);
+  const QUOTE_INTERVAL_MS = 3000;
+  const quoteArea = document.getElementById('quote-area');
+  const authorArea = document.getElementById('author-area');
+
+  function renderQuote(q) {
+    quoteArea.innerHTML = q.text || '';
+    authorArea.textContent = q.author ? ('— ' + q.author) : '';
+  }
+
+  // Cycle through all quotes sequentially. Each request returns HTML that will
+  // iterate over every quote in order, pausing QUOTE_INTERVAL_MS between transitions.
+  function startCycle() {
+    let i = 0;
+    if (!quotes || quotes.length === 0) {
+      quoteArea.textContent = 'No quotes available';
+      return;
+    }
+
+    // render first immediately
+    renderQuote(quotes[0]);
+
+    // Start a timer that advances one quote every QUOTE_INTERVAL_MS
+    setInterval(() => {
+      i = (i + 1) % quotes.length;
+      renderQuote(quotes[i]);
+    }, QUOTE_INTERVAL_MS);
+  }
+  
+  try {
+    startCycle();
+  } catch (error) {
+    console.error('Error starting cycle:', error);
+    // When the page loads, start the cycle
+    if (document.readyState === 'loading') {
+      console.warn('DOMContentLoaded event not fired yet');
+      document.addEventListener('DOMContentLoaded', startCycle);
+    } else {
+      console.warn('DOMContentLoaded event already fired');
+      startCycle();
+    }
+  }
+
+</script>
+
+</html>
