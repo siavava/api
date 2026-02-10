@@ -31,7 +31,6 @@ async fn get_location(
   match (city, state) {
     (Some(city_str), Some(state_str)) => {
       info!("fetching city: {}, state: {}", city_str, state_str);
-      // let res = location!(&db_client, &city_str, &state_str);
       let res = location!(eval & db_client, eval & city_str, eval & state_str);
       info!("res (1): {:?}", res);
       Ok(HttpResponse::Ok().json(res))

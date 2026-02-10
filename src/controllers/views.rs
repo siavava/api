@@ -115,7 +115,14 @@ pub async fn get_all_views(client: &Client) -> Result<Vec<PageViews>, DbError> {
   let res = collection.find(doc! {}).await;
 
   match res {
-    Ok(cursor) => cursor.try_collect().await,
+    Ok(cursor) => cursor
+      .try_collect()
+      .await
+      .and_then(|views: Vec<PageViews>| {
+        let mut views = views;
+        views.sort_by(|a, b| b.count.cmp(&a.count));
+        Ok(views)
+      }),
     Err(e) => Err(e),
   }
 }
