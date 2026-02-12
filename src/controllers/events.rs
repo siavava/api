@@ -60,8 +60,6 @@ struct ActiveListeners {
 // convert PagViews to bytestring
 impl std::convert::From<ActiveListeners> for ByteString {
   fn from(listeners: ActiveListeners) -> Self {
-    // let PageViews { route, count } = page_views;
-    // let bytes_str = format!("{{route:\"{route}\",count:\"{count}\"}}",);
     let bytes_str = serde_json::to_string(&listeners);
     match bytes_str {
       Ok(value) => ByteString::from(value),
