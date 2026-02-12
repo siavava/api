@@ -6,7 +6,7 @@
 # COMPILE SERVER using RUST image
 ##########################################
 
-FROM rust:1.86-slim-bookworm AS build
+FROM rust:1.93-slim-bookworm AS build
 
 RUN apt-get update && apt-get install make
 
