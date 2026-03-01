@@ -6,7 +6,7 @@
 # COMPILE SERVER using RUST image
 ##########################################
 
-FROM rust:1.93-slim-bookworm AS build
+FROM rust:1-slim-trixie AS builder
 
 RUN apt-get update && apt-get install make
 
@@ -22,7 +22,7 @@ RUN make
 FROM debian:stable-slim AS runner
 
 WORKDIR /usr/local/bin
-COPY --from=build /usr/src/server/target/release/server .
+COPY --from=builder /usr/src/server/target/release/server .
 
 EXPOSE 8080 8080
 EXPOSE 8080 80
