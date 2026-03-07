@@ -74,12 +74,25 @@ async fn handle_message(
   };
 
   match request {
-    WsRequest::Create { comment } => match comments::create_comment(db_client, comment).await {
-      Ok(created) => WsResponse::Created { comment: created },
-      Err(e) => WsResponse::Error {
-        message: format!("failed to create comment: {e}"),
-      },
-    },
+    WsRequest::Create { comment, reply_to } => {
+      let parent_oid = match reply_to {
+        Some(ref id_str) => match ObjectId::parse_str(id_str) {
+          Ok(oid) => Some(oid),
+          Err(e) => {
+            return WsResponse::Error {
+              message: format!("invalid reply_to id: {e}"),
+            };
+          }
+        },
+        None => None,
+      };
+      match comments::create_comment(db_client, comment, parent_oid.as_ref()).await {
+        Ok(created) => WsResponse::Created { comment: created },
+        Err(e) => WsResponse::Error {
+          message: format!("failed to create comment: {e}"),
+        },
+      }
+    }
 
     WsRequest::Edit { id, edit } => {
       let oid = match ObjectId::parse_str(&id) {

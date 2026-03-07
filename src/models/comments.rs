@@ -8,6 +8,11 @@ fn serialize_object_id<S: Serializer>(id: &Option<ObjectId>, s: S) -> Result<S::
   }
 }
 
+fn serialize_object_ids<S: Serializer>(ids: &Vec<String>, s: S) -> Result<S::Ok, S::Error> {
+  s.collect_seq(ids.iter())
+}
+
+/// DB model for a comment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlogComment {
   #[serde(
@@ -24,6 +29,50 @@ pub struct BlogComment {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub edited_time: Option<String>,
   pub path: String,
+  #[serde(default)]
+  pub likes: i64,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub reply_to: Option<String>,
+  #[serde(default, serialize_with = "serialize_object_ids")]
+  pub replies: Vec<String>,
+}
+
+/// Response model with populated replies.
+#[derive(Debug, Clone, Serialize)]
+pub struct PopulatedComment {
+  #[serde(
+    skip_serializing_if = "Option::is_none",
+    serialize_with = "serialize_object_id"
+  )]
+  pub id: Option<ObjectId>,
+  pub text: String,
+  pub markup: String,
+  pub author: String,
+  pub created_time: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub edited_time: Option<String>,
+  pub path: String,
+  pub likes: i64,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub reply_to: Option<String>,
+  pub replies: Vec<PopulatedComment>,
+}
+
+impl PopulatedComment {
+  pub fn from_comment(comment: BlogComment, populated_replies: Vec<PopulatedComment>) -> Self {
+    Self {
+      id: comment.id,
+      text: comment.text,
+      markup: comment.markup,
+      author: comment.author,
+      created_time: comment.created_time,
+      edited_time: comment.edited_time,
+      path: comment.path,
+      likes: comment.likes,
+      reply_to: comment.reply_to,
+      replies: populated_replies,
+    }
+  }
 }
 
 /// Partial update payload for editing a comment.
@@ -38,6 +87,7 @@ pub struct CommentEdit {
 pub enum WsRequest {
   Create {
     comment: BlogComment,
+    reply_to: Option<String>,
   },
   Edit {
     id: String,
@@ -59,6 +109,6 @@ pub enum WsResponse {
   Created { comment: BlogComment },
   Updated { comment: BlogComment },
   Deleted { id: String },
-  List { comments: Vec<BlogComment> },
+  List { comments: Vec<PopulatedComment> },
   Error { message: String },
 }
