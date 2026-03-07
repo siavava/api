@@ -1,3 +1,4 @@
+pub mod comments;
 pub mod events;
 pub mod location;
 pub mod views;

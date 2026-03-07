@@ -1,3 +1,4 @@
+mod comments;
 mod location;
 mod quotes;
 mod views;
@@ -7,4 +8,5 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   quotes::register(cfg);
   views::register(cfg);
   location::register(cfg);
+  comments::register(cfg);
 }
