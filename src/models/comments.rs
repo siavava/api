@@ -16,12 +16,9 @@ use serde::{Deserialize, Serialize, Serializer};
 
 /// A comment event broadcast to all connected WebSocket clients.
 ///
-/// Carries the originating client's ID (so the sender can be skipped),
-/// the page path the event applies to, and the response payload.
+/// Carries the page path the event applies to and the response payload.
 #[derive(Debug, Clone)]
 pub struct CommentEvent {
-  /// Unique ID of the WebSocket client that triggered this event.
-  pub sender_id: u64,
   /// The page path the affected comment belongs to.
   pub path: String,
   /// The response payload to forward to subscribed clients.

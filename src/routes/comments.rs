@@ -6,10 +6,11 @@
 //! Each text frame is parsed as a [`CommentRequest`] and dispatched to the
 //! appropriate controller function; a [`CommentResponse`] is sent back as JSON.
 //!
-//! Clients are also notified of changes made by other clients. When a client
+//! Clients are also notified of changes made by any client. When a client
 //! sends a `List` request, the requested path becomes that client's "active
 //! route". Subsequent mutation events (create, edit, like, delete) on that
-//! path — triggered by *any* connected client — are forwarded automatically.
+//! path — triggered by *any* connected client (including self) — are
+//! forwarded automatically via the broadcast channel.
 
 use crate::{
   AppState,
@@ -21,14 +22,11 @@ use actix_web::{
   Error as ActixError, HttpRequest, HttpResponse, get,
   web::{Data, scope},
 };
-use actix_ws::Message;
+use actix_ws::{Message, Session};
 use futures_util::StreamExt;
 use mongodb::bson::oid::ObjectId;
-use std::sync::atomic::{AtomicU64, Ordering};
+use tokio::sync::broadcast;
 use tracing::{error, info};
-
-/// Global counter for assigning unique IDs to each WebSocket client.
-static NEXT_CLIENT_ID: AtomicU64 = AtomicU64::new(0);
 
 /// Registers the `/comments/` WebSocket endpoint.
 ///
@@ -54,6 +52,25 @@ fn parse_oid(id: &str) -> Result<ObjectId, String> {
   ObjectId::parse_str(id).map_err(|e| format!("invalid id: {e}"))
 }
 
+/// Serializes a [`CommentResponse`] and sends it over the WebSocket session.
+///
+/// Returns `false` if the send failed (connection should be closed).
+async fn send_response(session: &mut Session, response: &CommentResponse) -> bool {
+  match serde_json::to_string(response) {
+    Ok(json) => {
+      if let Err(e) = session.text(json).await {
+        error!("failed to send ws message: {e}");
+        return false;
+      }
+      true
+    }
+    Err(e) => {
+      error!("failed to serialize response: {e}");
+      true // serialization error isn't a connection failure
+    }
+  }
+}
+
 /// `GET /comments/` — WebSocket endpoint for real-time comment operations.
 ///
 /// # Behavior
@@ -62,11 +79,12 @@ fn parse_oid(id: &str) -> Result<ObjectId, String> {
 /// 2. Each incoming text frame is parsed as a [`CommentRequest`]
 ///    (JSON with an `"action"` tag).
 /// 3. The request is dispatched to the matching controller function.
-/// 4. A [`CommentResponse`] is serialized as JSON and sent back.
-/// 5. When a client sends a `List` request, the requested path becomes that
-///    client's **active route**. From then on, mutation events (create, edit,
-///    like, delete) on the active route — triggered by any other connected
-///    client — are forwarded as live updates.
+/// 4. For `List` requests, the response is sent directly back to the client
+///    and the requested path becomes the client's **active route**.
+/// 5. For mutation requests (create, edit, like, delete), the response is
+///    **not** sent directly — instead it is broadcast to **all** clients
+///    (including the sender) whose active route matches the affected path.
+///    Errors are still sent directly to the requesting client only.
 ///
 /// Also handles `Ping`/`Pong` for keep-alive and logs client disconnects.
 ///
@@ -124,81 +142,93 @@ async fn comments_ws(
   stream: actix_web::web::Payload,
   app_state: Data<AppState>,
 ) -> Result<HttpResponse, ActixError> {
-  let (response, mut session, mut msg_stream) = actix_ws::handle(&req, stream)?;
+  let (response, session, msg_stream) = actix_ws::handle(&req, stream)?;
   let db_client = app_state.db_client.clone();
   let broadcast_tx = app_state.comment_events.clone();
-  let mut broadcast_rx = broadcast_tx.subscribe();
-  let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::Relaxed);
+  let broadcast_rx = broadcast_tx.subscribe();
 
-  actix_web::rt::spawn(async move {
-    let mut active_route: Option<String> = None;
+  actix_web::rt::spawn(ws_event_loop(
+    session,
+    msg_stream,
+    db_client,
+    broadcast_tx,
+    broadcast_rx,
+  ));
 
-    loop {
-      tokio::select! {
-        // Incoming WebSocket message from this client
-        ws_msg = msg_stream.next() => {
-          let Some(Ok(msg)) = ws_msg else { break };
-          match msg {
-            Message::Text(text) => {
-              let (response, event_path) =
-                handle_message(&db_client, &text, &mut active_route).await;
-              match serde_json::to_string(&response) {
-                Ok(json) => {
-                  if let Err(e) = session.text(json).await {
-                    error!("failed to send ws message: {e}");
-                    break;
-                  }
-                }
-                Err(e) => {
-                  error!("failed to serialize response: {e}");
-                }
-              }
-              // Broadcast mutation events to other clients
-              if let Some(path) = event_path {
-                let _ = broadcast_tx.send(CommentEvent {
-                  sender_id: client_id,
-                  path,
-                  response,
-                });
-              }
-            }
-            Message::Ping(bytes) => {
-              if session.pong(&bytes).await.is_err() {
-                break;
-              }
-            }
-            Message::Close(_) => {
-              info!("ws client disconnected");
-              break;
-            }
-            _ => {}
-          }
+  Ok(response)
+}
+
+/// Main event loop for a single WebSocket client.
+///
+/// Multiplexes incoming client messages with broadcast events from the
+/// shared channel. Runs until the client disconnects or a send error occurs.
+async fn ws_event_loop(
+  mut session: Session,
+  mut msg_stream: actix_ws::MessageStream,
+  db_client: mongodb::Client,
+  broadcast_tx: broadcast::Sender<CommentEvent>,
+  mut broadcast_rx: broadcast::Receiver<CommentEvent>,
+) {
+  let mut active_route: Option<String> = None;
+
+  loop {
+    tokio::select! {
+      ws_msg = msg_stream.next() => {
+        let Some(Ok(msg)) = ws_msg else { break };
+        if !handle_ws_message(
+          msg, &db_client, &mut session, &broadcast_tx, &mut active_route,
+        ).await {
+          break;
         }
+      }
 
-        // Broadcast event from another client
-        event = broadcast_rx.recv() => {
-          let Ok(event) = event else { continue };
-          // Skip events from self
-          if event.sender_id == client_id {
-            continue;
-          }
-          // Only forward events matching this client's active route
-          let Some(ref route) = active_route else { continue };
-          if event.path != *route {
-            continue;
-          }
-          if let Ok(json) = serde_json::to_string(&event.response)
-            && let Err(e) = session.text(json).await
-          {
-            error!("failed to forward broadcast: {e}");
-            break;
-          }
+      event = broadcast_rx.recv() => {
+        let Ok(event) = event else { continue };
+        if !matches_active_route(&active_route, &event.path) {
+          continue;
+        }
+        if !send_response(&mut session, &event.response).await {
+          break;
         }
       }
     }
-  });
+  }
+}
 
-  Ok(response)
+/// Returns `true` if the event path matches the client's active route.
+fn matches_active_route(active_route: &Option<String>, event_path: &str) -> bool {
+  active_route.as_deref() == Some(event_path)
+}
+
+/// Processes a single incoming WebSocket frame.
+///
+/// Returns `false` if the connection should be closed (send error or client
+/// disconnect).
+async fn handle_ws_message(
+  msg: Message,
+  db_client: &mongodb::Client,
+  session: &mut Session,
+  broadcast_tx: &broadcast::Sender<CommentEvent>,
+  active_route: &mut Option<String>,
+) -> bool {
+  match msg {
+    Message::Text(text) => {
+      let (response, event_path) = handle_message(db_client, &text, active_route).await;
+
+      if let Some(path) = event_path {
+        let _ = broadcast_tx.send(CommentEvent { path, response });
+      } else {
+        return send_response(session, &response).await;
+      }
+      true
+    }
+    Message::Ping(bytes) => session.pong(&bytes).await.is_ok(),
+    Message::Close(_) => {
+      info!("ws client disconnected");
+      false
+    }
+    _ => true,
+  }
 }
 
 /// Parses a raw WebSocket text frame and dispatches it to the matching
@@ -244,6 +274,7 @@ async fn handle_message(
         },
         None => None,
       };
+
       match comments::create_comment(db_client, comment, parent_oid.as_ref()).await {
         Ok(created) => (CommentResponse::Created { comment: created }, Some(path)),
         Err(e) => (
@@ -260,6 +291,7 @@ async fn handle_message(
         Ok(oid) => oid,
         Err(e) => return (CommentResponse::Error { message: e }, None),
       };
+
       match comments::edit_comment(db_client, &oid, edit).await {
         Ok(Some(updated)) => {
           let path = updated.path.clone();
@@ -285,11 +317,13 @@ async fn handle_message(
         Ok(oid) => oid,
         Err(e) => return (CommentResponse::Error { message: e }, None),
       };
+
       match comments::like_comment(db_client, &oid).await {
         Ok(Some(liked)) => {
           let path = liked.path.clone();
           (CommentResponse::Liked { comment: liked }, Some(path))
         }
+
         Ok(None) => (
           CommentResponse::Error {
             message: "comment not found".into(),
@@ -310,6 +344,7 @@ async fn handle_message(
         Ok(oid) => oid,
         Err(e) => return (CommentResponse::Error { message: e }, None),
       };
+      
       match comments::delete_comment(db_client, &oid).await {
         Ok((deleted_count, Some(path))) if deleted_count > 0 => (
           CommentResponse::Deleted { id, deleted_count },
