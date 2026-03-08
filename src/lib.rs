@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 // exported mods
 pub mod controllers;
+pub mod db;
 pub mod models;
 pub mod routes;
 

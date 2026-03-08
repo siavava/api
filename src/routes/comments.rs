@@ -17,6 +17,13 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(scope("/comments").service(comments_ws));
 }
 
+/// Parse a hex string as an ObjectId, returning a WsResponse::Error on failure.
+fn parse_oid(id: &str) -> Result<ObjectId, WsResponse> {
+  ObjectId::parse_str(id).map_err(|e| WsResponse::Error {
+    message: format!("invalid id: {e}"),
+  })
+}
+
 #[get("/")]
 async fn comments_ws(
   req: HttpRequest,
@@ -76,13 +83,9 @@ async fn handle_message(
   match request {
     WsRequest::Create { comment, reply_to } => {
       let parent_oid = match reply_to {
-        Some(ref id_str) => match ObjectId::parse_str(id_str) {
+        Some(ref id_str) => match parse_oid(id_str) {
           Ok(oid) => Some(oid),
-          Err(e) => {
-            return WsResponse::Error {
-              message: format!("invalid reply_to id: {e}"),
-            };
-          }
+          Err(e) => return e,
         },
         None => None,
       };
@@ -95,13 +98,9 @@ async fn handle_message(
     }
 
     WsRequest::Edit { id, edit } => {
-      let oid = match ObjectId::parse_str(&id) {
+      let oid = match parse_oid(&id) {
         Ok(oid) => oid,
-        Err(e) => {
-          return WsResponse::Error {
-            message: format!("invalid id: {e}"),
-          };
-        }
+        Err(e) => return e,
       };
       match comments::edit_comment(db_client, &oid, edit).await {
         Ok(Some(updated)) => WsResponse::Updated { comment: updated },
@@ -115,13 +114,9 @@ async fn handle_message(
     }
 
     WsRequest::Like { id } => {
-      let oid = match ObjectId::parse_str(&id) {
+      let oid = match parse_oid(&id) {
         Ok(oid) => oid,
-        Err(e) => {
-          return WsResponse::Error {
-            message: format!("invalid id: {e}"),
-          };
-        }
+        Err(e) => return e,
       };
       match comments::like_comment(db_client, &oid).await {
         Ok(Some(liked)) => WsResponse::Liked { comment: liked },
@@ -135,13 +130,9 @@ async fn handle_message(
     }
 
     WsRequest::Delete { id } => {
-      let oid = match ObjectId::parse_str(&id) {
+      let oid = match parse_oid(&id) {
         Ok(oid) => oid,
-        Err(e) => {
-          return WsResponse::Error {
-            message: format!("invalid id: {e}"),
-          };
-        }
+        Err(e) => return e,
       };
       match comments::delete_comment(db_client, &oid).await {
         Ok(deleted_count) if deleted_count > 0 => WsResponse::Deleted { id, deleted_count },

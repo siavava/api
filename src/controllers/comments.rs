@@ -4,18 +4,32 @@ use chrono::Utc;
 use futures::TryStreamExt;
 use mongodb::{Client, bson::doc, bson::oid::ObjectId, error::Error as DbError};
 
-const DB_NAME: &str = if cfg!(debug_assertions) {
-  "feed-dev"
-} else {
-  "feed"
-};
-
 const COLL_NAME: &str = "comments";
 
-pub fn get_collection(client: &Client) -> mongodb::Collection<BlogComment> {
-  client
-    .database(DB_NAME)
-    .collection::<BlogComment>(COLL_NAME)
+fn get_collection(client: &Client) -> mongodb::Collection<BlogComment> {
+  crate::db::collection(client, COLL_NAME)
+}
+
+/// Parse a list of hex ObjectId strings into ObjectIds, skipping invalid ones.
+fn parse_oids(ids: &[String]) -> Vec<ObjectId> {
+  ids
+    .iter()
+    .filter_map(|s| ObjectId::parse_str(s).ok())
+    .collect()
+}
+
+/// Update a comment by ID then return it with populated replies.
+async fn update_and_populate(
+  collection: &mongodb::Collection<BlogComment>,
+  id: &ObjectId,
+  update: mongodb::bson::Document,
+) -> Result<Option<PopulatedComment>, DbError> {
+  let filter = doc! { "_id": id };
+  collection.update_one(filter.clone(), update).await?;
+  match collection.find_one(filter).await? {
+    Some(comment) => Ok(Some(populate_replies(collection.clone(), comment).await?)),
+    None => Ok(None),
+  }
 }
 
 pub async fn create_comment(
@@ -52,7 +66,6 @@ pub async fn edit_comment(
   edit: CommentEdit,
 ) -> Result<Option<PopulatedComment>, DbError> {
   let collection = get_collection(client);
-  let filter = doc! { "_id": id };
   let now = Utc::now().to_rfc3339();
   let update = doc! {
     "$set": {
@@ -60,12 +73,7 @@ pub async fn edit_comment(
       "edited_time": &now,
     }
   };
-
-  collection.update_one(filter.clone(), update).await?;
-  match collection.find_one(filter).await? {
-    Some(comment) => Ok(Some(populate_replies(collection, comment).await?)),
-    None => Ok(None),
-  }
+  update_and_populate(&collection, id, update).await
 }
 
 pub async fn like_comment(
@@ -73,13 +81,8 @@ pub async fn like_comment(
   id: &ObjectId,
 ) -> Result<Option<PopulatedComment>, DbError> {
   let collection = get_collection(client);
-  let filter = doc! { "_id": id };
   let update = doc! { "$inc": { "likes": 1 } };
-  collection.update_one(filter.clone(), update).await?;
-  match collection.find_one(filter).await? {
-    Some(comment) => Ok(Some(populate_replies(collection, comment).await?)),
-    None => Ok(None),
-  }
+  update_and_populate(&collection, id, update).await
 }
 
 pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<u64, DbError> {
@@ -93,10 +96,8 @@ pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<u64, DbErr
   };
 
   // Recursively delete all replies concurrently
-  let reply_futures: Vec<_> = comment
-    .replies
-    .iter()
-    .filter_map(|id_str| ObjectId::parse_str(id_str).ok())
+  let reply_futures: Vec<_> = parse_oids(&comment.replies)
+    .into_iter()
     .map(|reply_oid| Box::pin(async move { delete_comment(client, &reply_oid).await }))
     .collect();
 
@@ -143,12 +144,7 @@ async fn populate_replies(
     return Ok(PopulatedComment::from_comment(comment, vec![]));
   }
 
-  let reply_oids: Vec<ObjectId> = comment
-    .replies
-    .iter()
-    .filter_map(|id_str| ObjectId::parse_str(id_str).ok())
-    .collect();
-
+  let reply_oids = parse_oids(&comment.replies);
   let filter = doc! { "_id": { "$in": &reply_oids } };
   let reply_comments: Vec<BlogComment> = collection.find(filter).await?.try_collect().await?;
 

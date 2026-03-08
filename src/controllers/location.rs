@@ -5,27 +5,15 @@ use futures::{FutureExt, future::LocalBoxFuture};
 use log::info;
 use mongodb::{Client, bson::doc, error::Error as DbError};
 
-// if in production mode, use 'feed' database
-// otherwise, use 'feed-dev' database
-const DB_NAME: &str = if cfg!(debug_assertions) {
-  "feed-dev"
-} else {
-  "feed"
-};
-
 const COLL_NAME: &str = "location";
 const HISTORY_COLL_NAME: &str = "location_history";
 
 pub fn get_collection(client: &Client) -> mongodb::Collection<LocationData> {
-  client
-    .database(DB_NAME)
-    .collection::<LocationData>(COLL_NAME)
+  crate::db::collection(client, COLL_NAME)
 }
 
-pub fn get_history_collection(client: &Client) -> mongodb::Collection<LocationData> {
-  client
-    .database(DB_NAME)
-    .collection::<LocationData>(HISTORY_COLL_NAME)
+fn get_history_collection(client: &Client) -> mongodb::Collection<LocationData> {
+  crate::db::collection(client, HISTORY_COLL_NAME)
 }
 
 pub async fn get_last_and_update<'a>(
@@ -47,7 +35,7 @@ pub async fn get_last_and_update<'a>(
   last
 }
 
-pub async fn update_location_history<'a>(
+async fn update_location_history<'a>(
   client: &'a Client,
   city: &'a str,
   state: &'a str,
@@ -58,14 +46,9 @@ pub async fn update_location_history<'a>(
 
   let _ = history_collection
     .update_one(
+      doc! { "city": city, "state": state },
       doc! {
-        "city": city,
-        "state": state,
-      },
-      doc! {
-        "$set": {
-          "timestamp": mongodb::bson::DateTime::now(),
-        },
+        "$set": { "timestamp": mongodb::bson::DateTime::now() },
         "$inc": { "count": 1 }
       },
     )
@@ -76,7 +59,7 @@ pub async fn update_location_history<'a>(
   Ok(LocationData::default())
 }
 
-pub async fn update_last_location<'a>(
+async fn update_last_location<'a>(
   client: &'a Client,
   city: &'a str,
   state: &'a str,
@@ -85,41 +68,21 @@ pub async fn update_last_location<'a>(
 
   info!("UPDATING LAST LOCATION");
 
-  let res = collection
+  let found = collection
     .find_one_and_update(
       doc! {},
-      doc! {
-        "$set": {
-          "city": city,
-          "state": state,
-        }
-      },
+      doc! { "$set": { "city": city, "state": state } },
     )
     .upsert(true)
     .return_document(mongodb::options::ReturnDocument::Before)
-    .await;
+    .await?;
 
-  match res {
-    Ok(val) => match val {
-      Some(val) => Ok(val),
-      None => Ok(LocationData::default()),
-    },
-    Err(e) => Err(e),
-  }
+  Ok(found.unwrap_or_default())
 }
 
 pub async fn get_last(client: &Client) -> Result<LocationData, DbError> {
   let collection = get_collection(client);
-  let filter = doc! {};
-  let res = collection.find_one(filter).await;
-
-  match res {
-    Ok(val) => match val {
-      Some(val) => Ok(val),
-      None => Ok(LocationData::default()),
-    },
-    Err(e) => Err(e),
-  }
+  Ok(collection.find_one(doc! {}).await?.unwrap_or_default())
 }
 
 #[macro_export]

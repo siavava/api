@@ -3,18 +3,10 @@ use crate::models::views::*;
 use futures::TryStreamExt;
 use mongodb::{Client, bson::doc, error::Error as DbError};
 
-// if in production mode, use 'feed' database
-// otherwise, use 'feed-dev' database
-const DB_NAME: &str = if cfg!(debug_assertions) {
-  "feed-dev"
-} else {
-  "feed"
-};
-
 const COLL_NAME: &str = "views";
 
 pub fn get_collection(client: &Client) -> mongodb::Collection<PageViews> {
-  client.database(DB_NAME).collection::<PageViews>(COLL_NAME)
+  crate::db::collection(client, COLL_NAME)
 }
 
 pub enum ViewsIncrement {
@@ -29,102 +21,63 @@ pub async fn get_views(
 ) -> Result<PageViews, DbError> {
   let collection = get_collection(client);
   let filter = doc! { "route": route };
-  let res = match increment {
+
+  let found = match increment {
     ViewsIncrement::INCREMENT => {
       let update = doc! { "$inc": { "count": 1 } };
       collection
         .find_one_and_update(filter, update)
         .upsert(true)
         .return_document(mongodb::options::ReturnDocument::After)
-        .await
+        .await?
     }
-    ViewsIncrement::NOINCREMENT => collection.find_one(filter).await,
+    ViewsIncrement::NOINCREMENT => collection.find_one(filter).await?,
   };
 
-  match res {
-    Ok(val) => match val {
-      Some(val) => Ok(val),
-      None => Ok(PageViews {
-        route: route.into(),
-        ..Default::default()
-      }),
-    },
-    Err(e) => Err(e),
-  }
+  Ok(found.unwrap_or(PageViews {
+    route: route.into(),
+    ..Default::default()
+  }))
 }
 
-// insert one view
 pub async fn insert_view(client: &Client, views: PageViews) -> Result<(), DbError> {
   let collection = get_collection(client);
-
   let filter = doc! { "route": &views.route };
-  let update = doc! {
-    "$set": {
-      "count": views.count as i32,
-    }
-  };
-
+  let update = doc! { "$set": { "count": views.count as i32 } };
   let options = mongodb::options::UpdateOptions::builder()
     .upsert(true)
     .build();
 
-  let res = collection
+  collection
     .update_one(filter, update)
     .with_options(options)
-    .await;
-
-  match res {
-    Ok(_) => Ok(()),
-    Err(e) => Err(e),
-  }
+    .await?;
+  Ok(())
 }
 
-// insert multiple views
 pub async fn insert_views(client: &Client, views: Vec<PageViews>) -> Result<(), DbError> {
-  // map views to insert_view
   let futures = views.into_iter().map(|view| {
     let client = client.clone();
     async move { insert_view(&client, view).await }
   });
 
-  // run all in parallel
-  let results = futures::future::join_all(futures).await;
-
-  results.iter().try_fold((), |acc, res| match (acc, res) {
-    ((), Ok(_)) => Ok(()),
-    ((), Err(e)) => Err(e.clone()),
-  })
+  for result in futures::future::join_all(futures).await {
+    result?;
+  }
+  Ok(())
 }
 
-// delete views
 pub async fn delete_views(client: &Client, route: &str) -> Result<(), DbError> {
   let collection = get_collection(client);
-
-  let filter = doc! { "route": route };
-  let res = collection.delete_one(filter).await;
-
-  match res {
-    Ok(_) => Ok(()),
-    Err(e) => Err(e),
-  }
+  collection.delete_one(doc! { "route": route }).await?;
+  Ok(())
 }
 
 pub async fn get_all_views(client: &Client) -> Result<Vec<PageViews>, DbError> {
   let collection = get_collection(client);
-
-  let res = collection.find(doc! {}).await;
-
-  match res {
-    Ok(cursor) => cursor
-      .try_collect()
-      .await
-      .map(|views: Vec<PageViews>| {
-        let mut views = views;
-        views.sort_by(|a, b| b.count.cmp(&a.count));
-        views
-      }),
-    Err(e) => Err(e),
-  }
+  let mut views: Vec<PageViews> = collection.find(doc! {}).await?.try_collect().await?;
+  views.sort_by(|a, b| b.count.cmp(&a.count));
+  Ok(views)
 }
 
 #[macro_export]
