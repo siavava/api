@@ -14,6 +14,20 @@
 use mongodb::bson::oid::ObjectId;
 use serde::{Deserialize, Serialize, Serializer};
 
+/// A comment event broadcast to all connected WebSocket clients.
+///
+/// Carries the originating client's ID (so the sender can be skipped),
+/// the page path the event applies to, and the response payload.
+#[derive(Debug, Clone)]
+pub struct CommentEvent {
+  /// Unique ID of the WebSocket client that triggered this event.
+  pub sender_id: u64,
+  /// The page path the affected comment belongs to.
+  pub path: String,
+  /// The response payload to forward to subscribed clients.
+  pub response: CommentResponse,
+}
+
 /// Serializes an `Option<ObjectId>` as a hex string (or `null`).
 ///
 /// # Arguments
@@ -214,7 +228,7 @@ pub enum CommentRequest {
 /// | `Deleted` | Confirms deletion with the original `id` and `deleted_count` (total documents removed, including nested replies). |
 /// | `List`    | All top-level comments for the requested path, with nested replies. |
 /// | `Error`   | A human-readable error message (invalid input, not found, DB error, etc.). |
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum CommentResponse {
   Created { comment: BlogComment },

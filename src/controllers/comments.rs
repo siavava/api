@@ -182,15 +182,17 @@ pub async fn like_comment(
 /// The total number of documents deleted (the comment itself plus all
 /// nested replies).
 /// Returns `0` if no comment with that `id` exists.
-pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<u64, DbError> {
+pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<(u64, Option<String>), DbError> {
   let collection = get_collection(client);
 
   // Find the comment first so we can access its replies and parent
   let filter = doc! { "_id": id };
   let comment = match collection.find_one(filter.clone()).await? {
     Some(c) => c,
-    None => return Ok(0),
+    None => return Ok((0, None)),
   };
+
+  let path = comment.path.clone();
 
   // Recursively delete all replies concurrently
   let reply_futures: Vec<_> = parse_oids(&comment.replies)
@@ -200,7 +202,7 @@ pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<u64, DbErr
 
   let mut deleted_count: u64 = 0;
   for result in futures::future::join_all(reply_futures).await {
-    deleted_count += result?;
+    deleted_count += result?.0;
   }
 
   // Remove this comment's ID from the parent's replies array
@@ -214,7 +216,7 @@ pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<u64, DbErr
 
   // Delete the comment itself
   let result = collection.delete_one(filter).await?;
-  Ok(deleted_count + result.deleted_count)
+  Ok((deleted_count + result.deleted_count, Some(path)))
 }
 
 /// Lists all top-level comments for a given page path, each with its full
