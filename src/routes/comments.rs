@@ -1,7 +1,7 @@
 use crate::{
   AppState,
   controllers::comments,
-  models::comments::{WsRequest, WsResponse},
+  models::comments::{CommentRequest, CommentResponse},
 };
 
 use actix_web::{
@@ -17,9 +17,9 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(scope("/comments").service(comments_ws));
 }
 
-/// Parse a hex string as an ObjectId, returning a WsResponse::Error on failure.
-fn parse_oid(id: &str) -> Result<ObjectId, WsResponse> {
-  ObjectId::parse_str(id).map_err(|e| WsResponse::Error {
+/// Parse a hex string as an ObjectId, returning a CommentResponse::Error on failure.
+fn parse_oid(id: &str) -> Result<ObjectId, CommentResponse> {
+  ObjectId::parse_str(id).map_err(|e| CommentResponse::Error {
     message: format!("invalid id: {e}"),
   })
 }
@@ -70,18 +70,18 @@ async fn comments_ws(
 async fn handle_message(
   db_client: &mongodb::Client,
   text: &str,
-) -> WsResponse {
-  let request: WsRequest = match serde_json::from_str(text) {
+) -> CommentResponse {
+  let request: CommentRequest = match serde_json::from_str(text) {
     Ok(req) => req,
     Err(e) => {
-      return WsResponse::Error {
+      return CommentResponse::Error {
         message: format!("invalid message: {e}"),
       };
     }
   };
 
   match request {
-    WsRequest::Create { comment, reply_to } => {
+    CommentRequest::Create { comment, reply_to } => {
       let parent_oid = match reply_to {
         Some(ref id_str) => match parse_oid(id_str) {
           Ok(oid) => Some(oid),
@@ -90,64 +90,64 @@ async fn handle_message(
         None => None,
       };
       match comments::create_comment(db_client, comment, parent_oid.as_ref()).await {
-        Ok(created) => WsResponse::Created { comment: created },
-        Err(e) => WsResponse::Error {
+        Ok(created) => CommentResponse::Created { comment: created },
+        Err(e) => CommentResponse::Error {
           message: format!("failed to create comment: {e}"),
         },
       }
     }
 
-    WsRequest::Edit { id, edit } => {
+    CommentRequest::Edit { id, edit } => {
       let oid = match parse_oid(&id) {
         Ok(oid) => oid,
         Err(e) => return e,
       };
       match comments::edit_comment(db_client, &oid, edit).await {
-        Ok(Some(updated)) => WsResponse::Updated { comment: updated },
-        Ok(None) => WsResponse::Error {
+        Ok(Some(updated)) => CommentResponse::Updated { comment: updated },
+        Ok(None) => CommentResponse::Error {
           message: "comment not found".into(),
         },
-        Err(e) => WsResponse::Error {
+        Err(e) => CommentResponse::Error {
           message: format!("failed to edit comment: {e}"),
         },
       }
     }
 
-    WsRequest::Like { id } => {
+    CommentRequest::Like { id } => {
       let oid = match parse_oid(&id) {
         Ok(oid) => oid,
         Err(e) => return e,
       };
       match comments::like_comment(db_client, &oid).await {
-        Ok(Some(liked)) => WsResponse::Liked { comment: liked },
-        Ok(None) => WsResponse::Error {
+        Ok(Some(liked)) => CommentResponse::Liked { comment: liked },
+        Ok(None) => CommentResponse::Error {
           message: "comment not found".into(),
         },
-        Err(e) => WsResponse::Error {
+        Err(e) => CommentResponse::Error {
           message: format!("failed to like comment: {e}"),
         },
       }
     }
 
-    WsRequest::Delete { id } => {
+    CommentRequest::Delete { id } => {
       let oid = match parse_oid(&id) {
         Ok(oid) => oid,
         Err(e) => return e,
       };
       match comments::delete_comment(db_client, &oid).await {
-        Ok(deleted_count) if deleted_count > 0 => WsResponse::Deleted { id, deleted_count },
-        Ok(_) => WsResponse::Error {
+        Ok(deleted_count) if deleted_count > 0 => CommentResponse::Deleted { id, deleted_count },
+        Ok(_) => CommentResponse::Error {
           message: "comment not found".into(),
         },
-        Err(e) => WsResponse::Error {
+        Err(e) => CommentResponse::Error {
           message: format!("failed to delete comment: {e}"),
         },
       }
     }
 
-    WsRequest::List { path } => match comments::list_comments(db_client, &path).await {
-      Ok(list) => WsResponse::List { comments: list },
-      Err(e) => WsResponse::Error {
+    CommentRequest::List { path } => match comments::list_comments(db_client, &path).await {
+      Ok(list) => CommentResponse::List { comments: list },
+      Err(e) => CommentResponse::Error {
         message: format!("failed to list comments: {e}"),
       },
     },

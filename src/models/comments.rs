@@ -84,7 +84,7 @@ pub struct CommentEdit {
 /// WebSocket message types sent by the client.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "action", rename_all = "lowercase")]
-pub enum WsRequest {
+pub enum CommentRequest {
   Create {
     comment: BlogComment,
     reply_to: Option<String>,
@@ -108,7 +108,7 @@ pub enum WsRequest {
 /// WebSocket message types sent back to the client.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
-pub enum WsResponse {
+pub enum CommentResponse {
   Created { comment: BlogComment },
   Updated { comment: PopulatedComment },
   Liked { comment: PopulatedComment },
