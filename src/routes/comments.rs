@@ -71,7 +71,8 @@ async fn send_response(session: &mut Session, response: &CommentResponse) -> boo
   }
 }
 
-/// `GET /comments/` — WebSocket endpoint for real-time comment operations.
+/// `GET /comments/` — WebSocket endpoint for real-time comment
+/// operations.
 ///
 /// # Behavior
 ///
@@ -79,62 +80,124 @@ async fn send_response(session: &mut Session, response: &CommentResponse) -> boo
 /// 2. Each incoming text frame is parsed as a [`CommentRequest`]
 ///    (JSON with an `"action"` tag).
 /// 3. The request is dispatched to the matching controller function.
-/// 4. For `List` requests, the response is sent directly back to the client
-///    and the requested path becomes the client's **active route**.
-/// 5. For mutation requests (create, edit, like, delete), the response is
-///    **not** sent directly — instead it is broadcast to **all** clients
-///    (including the sender) whose active route matches the affected path.
-///    Errors are still sent directly to the requesting client only.
+/// 4. For `List` requests, the response is sent directly back to the
+///    client and the requested path becomes the client's **active
+///    route**.
+/// 5. For mutation requests (create, edit, like, delete), the response
+///    is **not** sent directly — instead it is broadcast to **all**
+///    clients (including the sender) whose active route matches the
+///    affected path. Errors are still sent directly to the requesting
+///    client only.
 ///
-/// Also handles `Ping`/`Pong` for keep-alive and logs client disconnects.
+/// Also handles `Ping`/`Pong` for keep-alive and logs client
+/// disconnects.
 ///
 /// # Example Request Frames
 ///
 /// **Create a comment:**
 /// ```json
-/// { "action": "create", "comment": { "text": "Hello!", "markup": "<p>Hello!</p>", "author": "Alice", "path": "/blog/post-1" } }
+/// {
+///   "action": "create",
+///   "comment": {
+///     "text": "Hello!",
+///     "markup": "<p>Hello!</p>",
+///     "author": "Alice",
+///     "path": "/blog/post-1"
+///   }
+/// }
 /// ```
 ///
 /// **Create a reply:**
 /// ```json
-/// { "action": "create", "comment": { "text": "Reply!", "markup": "<p>Reply!</p>", "author": "Bob", "path": "/blog/post-1" }, "reply_to": "665a1b2c3d4e5f6a7b8c9d0e" }
+/// {
+///   "action": "create",
+///   "comment": {
+///     "text": "Reply!",
+///     "markup": "<p>Reply!</p>",
+///     "author": "Bob",
+///     "path": "/blog/post-1"
+///   },
+///   "reply_to": "665a1b2c3d4e5f6a7b8c9d0e"
+/// }
 /// ```
 ///
 /// **Edit a comment:**
 /// ```json
-/// { "action": "edit", "id": "665a1b2c3d4e5f6a7b8c9d0e", "text": "Updated text" }
+/// {
+///   "action": "edit",
+///   "id": "665a1b2c3d4e5f6a7b8c9d0e",
+///   "text": "Updated text"
+/// }
 /// ```
 ///
 /// **Like a comment:**
 /// ```json
-/// { "action": "like", "id": "665a1b2c3d4e5f6a7b8c9d0e" }
+/// {
+///   "action": "like",
+///   "id": "665a1b2c3d4e5f6a7b8c9d0e"
+/// }
 /// ```
 ///
 /// **Delete a comment:**
 /// ```json
-/// { "action": "delete", "id": "665a1b2c3d4e5f6a7b8c9d0e" }
+/// {
+///   "action": "delete",
+///   "id": "665a1b2c3d4e5f6a7b8c9d0e"
+/// }
 /// ```
 ///
 /// **List comments for a page:**
 /// ```json
-/// { "action": "list", "path": "/blog/post-1" }
+/// {
+///   "action": "list",
+///   "path": "/blog/post-1"
+/// }
 /// ```
 ///
 /// # Example Response Frames
 ///
 /// **Created:**
 /// ```json
-/// { "type": "created", "comment": { "id": "665a...", "text": "Hello!", "markup": "<p>Hello!</p>", "author": "Alice", "path": "/blog/post-1", "created_time": "2025-06-01T12:00:00Z", "likes": 0, "replies": [] } }
+/// {
+///   "type": "created",
+///   "comment": {
+///     "id": "665a...",
+///     "text": "Hello!",
+///     "markup": "<p>Hello!</p>",
+///     "author": "Alice",
+///     "path": "/blog/post-1",
+///     "created_time": "2025-06-01T12:00:00Z",
+///     "likes": 0,
+///     "replies": []
+///   }
+/// }
 /// ```
 ///
 /// **List:**
 /// ```json
-/// { "type": "list", "comments": [ { "id": "665a...", "text": "Hello!", ... , "replies": [ { "id": "665b...", ... , "replies": [] } ] } ] }
+/// {
+///   "type": "list",
+///   "comments": [
+///     {
+///       "id": "665a...",
+///       "text": "Hello!",
+///       "replies": [
+///         {
+///           "id": "665b...",
+///           "replies": []
+///         }
+///       ]
+///     }
+///   ]
+/// }
 /// ```
 ///
 /// **Error:**
 /// ```json
-/// { "type": "error", "message": "invalid message: ..." }
+/// {
+///   "type": "error",
+///   "message": "invalid message: ..."
+/// }
 /// ```
 #[get("/")]
 async fn comments_ws(
@@ -244,9 +307,10 @@ async fn handle_ws_message(
 /// # Returns
 ///
 /// A tuple of:
-/// - [`CommentResponse`] — the response to send back to the requesting client.
-/// - `Option<String>` — the page path to broadcast on, if this was a mutation.
-///   `None` for `List` requests and errors.
+/// - [`CommentResponse`] — the response to send back to the
+///   requesting client.
+/// - `Option<String>` — the page path to broadcast on, if this was
+///   a mutation. `None` for `List` requests and errors.
 async fn handle_message(
   db_client: &mongodb::Client,
   text: &str,
