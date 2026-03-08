@@ -14,11 +14,27 @@ use server::{AppState, app_state, routes};
 use std::{env, io::Result};
 use tracing::{error, info};
 
+/// `GET /hello/{name}` — simple health-check / greeting endpoint.
 #[get("/hello/{name}")]
 async fn greet(name: web::Path<String>) -> impl Responder {
   format!("Hello {name}!")
 }
 
+/// Application entry point.
+///
+/// # Startup Sequence
+///
+/// 1. Loads environment variables from `.env` (via `dotenv`).
+/// 2. Initializes `tracing` for structured logging.
+/// 3. Connects to MongoDB using `MONGODB_URI` (required) and resolves
+///    `PORT` (optional, defaults to `3000`).
+/// 4. Builds the Actix-Web server with CORS, request logging,
+///    trailing-slash normalization, and all route modules.
+///
+/// # Environment Variables
+///
+/// * **`MONGODB_URI`** (required) — MongoDB connection string.
+/// * **`PORT`** (optional) — Port to bind to. Defaults to `3000`.
 #[actix_web::main]
 async fn main() -> Result<()> {
   const DEFAULT_PORT: u16 = 3000;

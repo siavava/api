@@ -1,3 +1,11 @@
+//! # Comments Route
+//!
+//! WebSocket endpoint for real-time comment operations.
+//!
+//! Exposes `GET /comments/` which upgrades to a WebSocket connection.
+//! Each text frame is parsed as a [`CommentRequest`] and dispatched to the
+//! appropriate controller function; a [`CommentResponse`] is sent back as JSON.
+
 use crate::{
   AppState,
   controllers::comments,
@@ -13,17 +21,92 @@ use futures_util::StreamExt;
 use mongodb::bson::oid::ObjectId;
 use tracing::{error, info};
 
+/// Registers the `/comments/` WebSocket endpoint.
+///
+/// # Arguments
+///
+/// * `cfg` — The Actix-Web service config to register routes on.
 pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(scope("/comments").service(comments_ws));
 }
 
-/// Parse a hex string as an ObjectId, returning a CommentResponse::Error on failure.
+/// Parses a hex string as an `ObjectId`.
+///
+/// # Arguments
+///
+/// * `id` — A hex-encoded ObjectId string (24 characters).
+///
+/// # Returns
+///
+/// * `Ok(ObjectId)` on success.
+/// * `Err(CommentResponse::Error { .. })` with a descriptive message on
+///   failure.
 fn parse_oid(id: &str) -> Result<ObjectId, CommentResponse> {
   ObjectId::parse_str(id).map_err(|e| CommentResponse::Error {
     message: format!("invalid id: {e}"),
   })
 }
 
+/// `GET /comments/` — WebSocket endpoint for real-time comment operations.
+///
+/// # Behavior
+///
+/// 1. Upgrades the HTTP connection to a WebSocket.
+/// 2. Each incoming text frame is parsed as a [`CommentRequest`]
+///    (JSON with an `"action"` tag).
+/// 3. The request is dispatched to the matching controller function.
+/// 4. A [`CommentResponse`] is serialized as JSON and sent back.
+///
+/// Also handles `Ping`/`Pong` for keep-alive and logs client disconnects.
+///
+/// # Example Request Frames
+///
+/// **Create a comment:**
+/// ```json
+/// { "action": "create", "comment": { "text": "Hello!", "markup": "<p>Hello!</p>", "author": "Alice", "path": "/blog/post-1" } }
+/// ```
+///
+/// **Create a reply:**
+/// ```json
+/// { "action": "create", "comment": { "text": "Reply!", "markup": "<p>Reply!</p>", "author": "Bob", "path": "/blog/post-1" }, "reply_to": "665a1b2c3d4e5f6a7b8c9d0e" }
+/// ```
+///
+/// **Edit a comment:**
+/// ```json
+/// { "action": "edit", "id": "665a1b2c3d4e5f6a7b8c9d0e", "text": "Updated text" }
+/// ```
+///
+/// **Like a comment:**
+/// ```json
+/// { "action": "like", "id": "665a1b2c3d4e5f6a7b8c9d0e" }
+/// ```
+///
+/// **Delete a comment:**
+/// ```json
+/// { "action": "delete", "id": "665a1b2c3d4e5f6a7b8c9d0e" }
+/// ```
+///
+/// **List comments for a page:**
+/// ```json
+/// { "action": "list", "path": "/blog/post-1" }
+/// ```
+///
+/// # Example Response Frames
+///
+/// **Created:**
+/// ```json
+/// { "type": "created", "comment": { "id": "665a...", "text": "Hello!", "markup": "<p>Hello!</p>", "author": "Alice", "path": "/blog/post-1", "created_time": "2025-06-01T12:00:00Z", "likes": 0, "replies": [] } }
+/// ```
+///
+/// **List:**
+/// ```json
+/// { "type": "list", "comments": [ { "id": "665a...", "text": "Hello!", ... , "replies": [ { "id": "665b...", ... , "replies": [] } ] } ] }
+/// ```
+///
+/// **Error:**
+/// ```json
+/// { "type": "error", "message": "invalid message: ..." }
+/// ```
 #[get("/")]
 async fn comments_ws(
   req: HttpRequest,
@@ -67,6 +150,18 @@ async fn comments_ws(
   Ok(response)
 }
 
+/// Parses a raw WebSocket text frame and dispatches it to the matching
+/// controller.
+///
+/// # Arguments
+///
+/// * `db_client` — The MongoDB client.
+/// * `text` — The raw JSON string from the client.
+///
+/// # Returns
+///
+/// A [`CommentResponse`] — always succeeds at the Rust level; errors are
+/// represented as [`CommentResponse::Error`].
 async fn handle_message(
   db_client: &mongodb::Client,
   text: &str,

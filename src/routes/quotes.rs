@@ -1,3 +1,16 @@
+//! # Quotes Route
+//!
+//! REST and HTML endpoints for quote display and retrieval.
+//!
+//! # Endpoints
+//!
+//! | Method | Path           | Response  | Description                               |
+//! |--------|----------------|-----------|-------------------------------------------|
+//! | GET    | `/`            | HTML      | Self-contained page that cycles through quotes client-side. |
+//! | GET    | `/one`         | JSON      | Minimal health-check stub.                |
+//! | GET    | `/quotes/`     | JSON      | All quotes as a JSON array.               |
+//! | GET    | `/quotes/test` | Text      | Plain-text health-check.                  |
+
 use actix_web::{
   HttpResponse, Responder, get,
   web::{Html, scope},
@@ -5,7 +18,18 @@ use actix_web::{
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-// function to inject routes
+/// Registers quote endpoints.
+///
+/// # Arguments
+///
+/// * `cfg` — The Actix-Web service config to register routes on.
+///
+/// # Registered Routes
+///
+/// * `GET /` — the quotidian HTML page (served at the root).
+/// * `GET /one` — health-check stub.
+/// * `GET /quotes/` — JSON array of all quotes.
+/// * `GET /quotes/test` — plain-text test route.
 pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   // cfg.service(raw_quotes);
   // cfg.service(quotidian);
@@ -20,27 +44,56 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   );
 }
 
+/// Wrapper for deserializing the static `quotes.json` file.
 #[derive(Deserialize, Debug)]
 struct QuoteData {
+  /// List of all quotes loaded from the JSON file.
   quotes: Vec<Quote>,
 }
 
+/// A single quote with its text and attribution.
 #[derive(Serialize, Deserialize, Debug)]
 struct Quote {
+  /// The quote body (may contain HTML markup).
   text: String,
+  /// Who said or wrote the quote.
   author: String,
 }
 
+/// `GET /quotes/test` — plain-text health-check endpoint.
+///
+/// # Returns
+///
+/// `200 OK` with body `"Test route"` as plain text.
 #[get("/test")]
 async fn test() -> impl Responder {
   HttpResponse::Ok().body("Test route")
 }
 
+/// `GET /one` — minimal JSON health-check endpoint.
+///
+/// # Returns
+///
+/// `200 OK` with body `"Ok"` as JSON.
 #[get("/one")]
 async fn test_quotes() -> HttpResponse {
   HttpResponse::Ok().json("Ok")
 }
 
+/// `GET /quotes/` — returns all quotes from `quotes.json` as a JSON array.
+///
+/// # Returns
+///
+/// `200 OK` with a JSON array of quote objects.
+///
+/// # Example Response
+///
+/// ```json
+/// [
+///   { "text": "To be or not to be...", "author": "Shakespeare" },
+///   { "text": "I think, therefore I am.", "author": "Descartes" }
+/// ]
+/// ```
 #[get("/")]
 async fn get_quotes() -> HttpResponse {
   info!("loading quotes");
@@ -52,6 +105,19 @@ async fn get_quotes() -> HttpResponse {
   HttpResponse::Ok().json(quote_data.quotes)
 }
 
+/// `GET /` — serves a self-contained HTML page that cycles through all
+/// quotes client-side.
+///
+/// # Behavior
+///
+/// The full quote list is embedded as inline JSON so no additional API
+/// calls are needed. Quotes advance every 3 seconds via client-side
+/// JavaScript.
+///
+/// # Returns
+///
+/// `200 OK` with an HTML page containing inline JavaScript that cycles
+/// through all quotes.
 #[get("/")]
 async fn quotidian() -> Html {
   // Html::new(include_str!("../static/quotes.html"))

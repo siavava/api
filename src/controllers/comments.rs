@@ -1,3 +1,11 @@
+//! # Comments Controller
+//!
+//! Core logic for blog comment CRUD operations, including likes and
+//! recursive reply-tree management.
+//!
+//! All functions operate against the `comments` MongoDB collection and return
+//! domain types from [`crate::models::comments`].
+
 use crate::models::comments::{BlogComment, CommentEdit, PopulatedComment};
 
 use chrono::Utc;
@@ -6,11 +14,28 @@ use mongodb::{Client, bson::doc, bson::oid::ObjectId, error::Error as DbError};
 
 const COLL_NAME: &str = "comments";
 
+/// Returns a handle to the `comments` MongoDB collection.
+///
+/// # Arguments
+///
+/// * `client` — The MongoDB client connection.
+///
+/// # Returns
+///
+/// A `mongodb::Collection<BlogComment>` bound to the `comments` collection.
 fn get_collection(client: &Client) -> mongodb::Collection<BlogComment> {
   crate::db::collection(client, COLL_NAME)
 }
 
-/// Parse a list of hex ObjectId strings into ObjectIds, skipping invalid ones.
+/// Parses a list of hex `ObjectId` strings, skipping any that are invalid.
+///
+/// # Arguments
+///
+/// * `ids` — Slice of hex-encoded ObjectId strings.
+///
+/// # Returns
+///
+/// A `Vec<ObjectId>` containing only the successfully parsed entries.
 fn parse_oids(ids: &[String]) -> Vec<ObjectId> {
   ids
     .iter()
@@ -18,7 +43,20 @@ fn parse_oids(ids: &[String]) -> Vec<ObjectId> {
     .collect()
 }
 
-/// Update a comment by ID then return it with populated replies.
+/// Applies an update to a comment, then re-fetches it with its reply tree
+/// populated.
+///
+/// # Arguments
+///
+/// * `collection` — Handle to the `comments` collection.
+/// * `id` — The `ObjectId` of the comment to update.
+/// * `update` — A BSON update document (e.g. `$set`, `$inc`).
+///
+/// # Returns
+///
+/// * `Ok(Some(populated))` — The updated comment with nested replies.
+/// * `Ok(None)` — The comment no longer exists after the update
+///   (should not happen in practice).
 async fn update_and_populate(
   collection: &mongodb::Collection<BlogComment>,
   id: &ObjectId,
@@ -32,6 +70,20 @@ async fn update_and_populate(
   }
 }
 
+/// Creates a new comment and inserts it into the database.
+///
+/// # Arguments
+///
+/// * `client` — The MongoDB client connection.
+/// * `comment` — The comment payload.
+///   Fields `created_time`, `edited_time`, `likes`, and `replies` are
+///   overwritten with server-side defaults regardless of client input.
+/// * `reply_to` — If `Some`, this comment is a reply — the new comment's
+///   ID is pushed into the parent's `replies` array.
+///
+/// # Returns
+///
+/// The inserted [`BlogComment`] with its generated `id`.
 pub async fn create_comment(
   client: &Client,
   comment: BlogComment,
@@ -60,6 +112,18 @@ pub async fn create_comment(
   Ok(BlogComment { id, ..comment })
 }
 
+/// Updates a comment's text and sets `edited_time` to now.
+///
+/// # Arguments
+///
+/// * `client` — The MongoDB client connection.
+/// * `id` — The `ObjectId` of the comment to edit.
+/// * `edit` — Contains the new `text` value.
+///
+/// # Returns
+///
+/// The updated comment with populated replies, or `None` if no comment
+/// with that `id` exists.
 pub async fn edit_comment(
   client: &Client,
   id: &ObjectId,
@@ -76,6 +140,19 @@ pub async fn edit_comment(
   update_and_populate(&collection, id, update).await
 }
 
+/// Increments a comment's `likes` count by 1.
+///
+/// # Arguments
+///
+/// * `client` — The MongoDB client connection.
+/// * `id` — The `ObjectId` of the comment to like.
+///
+/// # Returns
+///
+/// The updated comment with populated replies, or `None` if no comment
+/// with that `id` exists.
+///
+/// > **Note:** Likes are *not* idempotent — each call adds one like.
 pub async fn like_comment(
   client: &Client,
   id: &ObjectId,
@@ -85,6 +162,26 @@ pub async fn like_comment(
   update_and_populate(&collection, id, update).await
 }
 
+/// Deletes a comment and all of its replies recursively.
+///
+/// # Arguments
+///
+/// * `client` — The MongoDB client connection.
+/// * `id` — The `ObjectId` of the comment to delete.
+///
+/// # Behavior
+///
+/// 1. Looks up the comment by `id`.
+/// 2. Recursively deletes all nested replies concurrently via `join_all`.
+/// 3. If the comment is itself a reply, pulls its ID from the parent's
+///    `replies` array.
+/// 4. Deletes the comment document itself.
+///
+/// # Returns
+///
+/// The total number of documents deleted (the comment itself plus all
+/// nested replies).
+/// Returns `0` if no comment with that `id` exists.
 pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<u64, DbError> {
   let collection = get_collection(client);
 
@@ -120,6 +217,22 @@ pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<u64, DbErr
   Ok(deleted_count + result.deleted_count)
 }
 
+/// Lists all top-level comments for a given page path, each with its full
+/// reply tree populated.
+///
+/// # Arguments
+///
+/// * `client` — The MongoDB client connection.
+/// * `path` — The page path to filter by (e.g. `/blog/some-post`).
+///
+/// # Behavior
+///
+/// Only comments where `reply_to` is `null` are returned at the top level;
+/// nested replies are resolved recursively via [`populate_replies`].
+///
+/// # Returns
+///
+/// A `Vec<PopulatedComment>` of top-level comments with nested reply trees.
 pub async fn list_comments(client: &Client, path: &str) -> Result<Vec<PopulatedComment>, DbError> {
   let collection = get_collection(client);
 
@@ -136,6 +249,20 @@ pub async fn list_comments(client: &Client, path: &str) -> Result<Vec<PopulatedC
   Ok(populated)
 }
 
+/// Recursively fetches and nests a comment's reply tree.
+///
+/// Converts a [`BlogComment`] (which stores replies as a flat list of ID
+/// strings) into a [`PopulatedComment`] with fully resolved, nested `replies`.
+///
+/// # Arguments
+///
+/// * `collection` — Handle to the `comments` collection.
+/// * `comment` — The comment whose replies should be populated.
+///
+/// # Returns
+///
+/// A [`PopulatedComment`] with its full reply tree resolved.
+/// Uses `Box::pin` for async recursion.
 async fn populate_replies(
   collection: mongodb::Collection<BlogComment>,
   comment: BlogComment,
