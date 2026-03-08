@@ -41,10 +41,8 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
 /// * `Ok(ObjectId)` on success.
 /// * `Err(CommentResponse::Error { .. })` with a descriptive message on
 ///   failure.
-fn parse_oid(id: &str) -> Result<ObjectId, CommentResponse> {
-  ObjectId::parse_str(id).map_err(|e| CommentResponse::Error {
-    message: format!("invalid id: {e}"),
-  })
+fn parse_oid(id: &str) -> Result<ObjectId, String> {
+  ObjectId::parse_str(id).map_err(|e| format!("invalid id: {e}"))
 }
 
 /// `GET /comments/` — WebSocket endpoint for real-time comment operations.
@@ -162,10 +160,7 @@ async fn comments_ws(
 ///
 /// A [`CommentResponse`] — always succeeds at the Rust level; errors are
 /// represented as [`CommentResponse::Error`].
-async fn handle_message(
-  db_client: &mongodb::Client,
-  text: &str,
-) -> CommentResponse {
+async fn handle_message(db_client: &mongodb::Client, text: &str) -> CommentResponse {
   let request: CommentRequest = match serde_json::from_str(text) {
     Ok(req) => req,
     Err(e) => {
@@ -180,7 +175,7 @@ async fn handle_message(
       let parent_oid = match reply_to {
         Some(ref id_str) => match parse_oid(id_str) {
           Ok(oid) => Some(oid),
-          Err(e) => return e,
+          Err(e) => return CommentResponse::Error { message: e },
         },
         None => None,
       };
@@ -195,7 +190,7 @@ async fn handle_message(
     CommentRequest::Edit { id, edit } => {
       let oid = match parse_oid(&id) {
         Ok(oid) => oid,
-        Err(e) => return e,
+        Err(e) => return CommentResponse::Error { message: e },
       };
       match comments::edit_comment(db_client, &oid, edit).await {
         Ok(Some(updated)) => CommentResponse::Updated { comment: updated },
@@ -211,7 +206,7 @@ async fn handle_message(
     CommentRequest::Like { id } => {
       let oid = match parse_oid(&id) {
         Ok(oid) => oid,
-        Err(e) => return e,
+        Err(e) => return CommentResponse::Error { message: e },
       };
       match comments::like_comment(db_client, &oid).await {
         Ok(Some(liked)) => CommentResponse::Liked { comment: liked },
@@ -227,7 +222,7 @@ async fn handle_message(
     CommentRequest::Delete { id } => {
       let oid = match parse_oid(&id) {
         Ok(oid) => oid,
-        Err(e) => return e,
+        Err(e) => return CommentResponse::Error { message: e },
       };
       match comments::delete_comment(db_client, &oid).await {
         Ok(deleted_count) if deleted_count > 0 => CommentResponse::Deleted { id, deleted_count },

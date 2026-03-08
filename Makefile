@@ -2,7 +2,7 @@
 #
 # Author: Amittai (@siavava)
 
-.PHONY: build test docs style-check lint login
+.PHONY: build dev test docs style-check lint login
 
 build:
 	@cargo build --release

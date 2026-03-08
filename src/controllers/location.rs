@@ -155,10 +155,7 @@ async fn update_last_location<'a>(
   info!("UPDATING LAST LOCATION");
 
   let found = collection
-    .find_one_and_update(
-      doc! {},
-      doc! { "$set": { "city": city, "state": state } },
-    )
+    .find_one_and_update(doc! {}, doc! { "$set": { "city": city, "state": state } })
     .upsert(true)
     .return_document(mongodb::options::ReturnDocument::Before)
     .await?;

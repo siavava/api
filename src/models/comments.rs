@@ -41,7 +41,7 @@ fn serialize_object_id<S: Serializer>(id: &Option<ObjectId>, s: S) -> Result<S::
 /// # Returns
 ///
 /// `Ok(S::Ok)` after writing a JSON array of strings.
-fn serialize_object_ids<S: Serializer>(ids: &Vec<String>, s: S) -> Result<S::Ok, S::Error> {
+fn serialize_object_ids<S: Serializer>(ids: &[String], s: S) -> Result<S::Ok, S::Error> {
   s.collect_seq(ids.iter())
 }
 
