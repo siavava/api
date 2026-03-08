@@ -43,17 +43,14 @@ pub async fn create_comment(
     collection.update_one(filter, update).await?;
   }
 
-  Ok(BlogComment {
-    id,
-    ..comment
-  })
+  Ok(BlogComment { id, ..comment })
 }
 
 pub async fn edit_comment(
   client: &Client,
   id: &ObjectId,
   edit: CommentEdit,
-) -> Result<Option<BlogComment>, DbError> {
+) -> Result<Option<PopulatedComment>, DbError> {
   let collection = get_collection(client);
   let filter = doc! { "_id": id };
   let now = Utc::now().to_rfc3339();
@@ -65,21 +62,64 @@ pub async fn edit_comment(
   };
 
   collection.update_one(filter.clone(), update).await?;
-  let updated = collection.find_one(filter).await?;
-  Ok(updated)
+  match collection.find_one(filter).await? {
+    Some(comment) => Ok(Some(populate_replies(collection, comment).await?)),
+    None => Ok(None),
+  }
 }
 
-pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<bool, DbError> {
+pub async fn like_comment(
+  client: &Client,
+  id: &ObjectId,
+) -> Result<Option<PopulatedComment>, DbError> {
   let collection = get_collection(client);
   let filter = doc! { "_id": id };
-  let result = collection.delete_one(filter).await?;
-  Ok(result.deleted_count > 0)
+  let update = doc! { "$inc": { "likes": 1 } };
+  collection.update_one(filter.clone(), update).await?;
+  match collection.find_one(filter).await? {
+    Some(comment) => Ok(Some(populate_replies(collection, comment).await?)),
+    None => Ok(None),
+  }
 }
 
-pub async fn list_comments(
-  client: &Client,
-  path: &str,
-) -> Result<Vec<PopulatedComment>, DbError> {
+pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<u64, DbError> {
+  let collection = get_collection(client);
+
+  // Find the comment first so we can access its replies and parent
+  let filter = doc! { "_id": id };
+  let comment = match collection.find_one(filter.clone()).await? {
+    Some(c) => c,
+    None => return Ok(0),
+  };
+
+  // Recursively delete all replies concurrently
+  let reply_futures: Vec<_> = comment
+    .replies
+    .iter()
+    .filter_map(|id_str| ObjectId::parse_str(id_str).ok())
+    .map(|reply_oid| Box::pin(async move { delete_comment(client, &reply_oid).await }))
+    .collect();
+
+  let mut deleted_count: u64 = 0;
+  for result in futures::future::join_all(reply_futures).await {
+    deleted_count += result?;
+  }
+
+  // Remove this comment's ID from the parent's replies array
+  if let Some(ref parent_id_str) = comment.reply_to
+    && let Ok(parent_oid) = ObjectId::parse_str(parent_id_str)
+  {
+    let parent_filter = doc! { "_id": &parent_oid };
+    let update = doc! { "$pull": { "replies": id.to_hex() } };
+    collection.update_one(parent_filter, update).await?;
+  }
+
+  // Delete the comment itself
+  let result = collection.delete_one(filter).await?;
+  Ok(deleted_count + result.deleted_count)
+}
+
+pub async fn list_comments(client: &Client, path: &str) -> Result<Vec<PopulatedComment>, DbError> {
   let collection = get_collection(client);
 
   // Only fetch top-level comments

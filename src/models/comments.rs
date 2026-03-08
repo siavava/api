@@ -94,6 +94,9 @@ pub enum WsRequest {
     #[serde(flatten)]
     edit: CommentEdit,
   },
+  Like {
+    id: String,
+  },
   Delete {
     id: String,
   },
@@ -107,8 +110,9 @@ pub enum WsRequest {
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum WsResponse {
   Created { comment: BlogComment },
-  Updated { comment: BlogComment },
-  Deleted { id: String },
+  Updated { comment: PopulatedComment },
+  Liked { comment: PopulatedComment },
+  Deleted { id: String, deleted_count: u64 },
   List { comments: Vec<PopulatedComment> },
   Error { message: String },
 }

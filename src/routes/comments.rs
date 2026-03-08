@@ -114,6 +114,26 @@ async fn handle_message(
       }
     }
 
+    WsRequest::Like { id } => {
+      let oid = match ObjectId::parse_str(&id) {
+        Ok(oid) => oid,
+        Err(e) => {
+          return WsResponse::Error {
+            message: format!("invalid id: {e}"),
+          };
+        }
+      };
+      match comments::like_comment(db_client, &oid).await {
+        Ok(Some(liked)) => WsResponse::Liked { comment: liked },
+        Ok(None) => WsResponse::Error {
+          message: "comment not found".into(),
+        },
+        Err(e) => WsResponse::Error {
+          message: format!("failed to like comment: {e}"),
+        },
+      }
+    }
+
     WsRequest::Delete { id } => {
       let oid = match ObjectId::parse_str(&id) {
         Ok(oid) => oid,
@@ -124,8 +144,8 @@ async fn handle_message(
         }
       };
       match comments::delete_comment(db_client, &oid).await {
-        Ok(true) => WsResponse::Deleted { id },
-        Ok(false) => WsResponse::Error {
+        Ok(deleted_count) if deleted_count > 0 => WsResponse::Deleted { id, deleted_count },
+        Ok(_) => WsResponse::Error {
           message: "comment not found".into(),
         },
         Err(e) => WsResponse::Error {
