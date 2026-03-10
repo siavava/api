@@ -277,10 +277,14 @@ async fn populate_replies(
   let filter = doc! { "_id": { "$in": &reply_oids } };
   let reply_comments: Vec<BlogComment> = collection.find(filter).await?.try_collect().await?;
 
-  let mut populated_replies = Vec::with_capacity(reply_comments.len());
-  for reply in reply_comments {
-    let p = Box::pin(populate_replies(collection.clone(), reply)).await?;
-    populated_replies.push(p);
+  let futures: Vec<_> = reply_comments
+    .into_iter()
+    .map(|reply| Box::pin(populate_replies(collection.clone(), reply)))
+    .collect();
+
+  let mut populated_replies = Vec::with_capacity(futures.len());
+  for result in futures::future::join_all(futures).await {
+    populated_replies.push(result?);
   }
 
   Ok(PopulatedComment::from_comment(comment, populated_replies))
