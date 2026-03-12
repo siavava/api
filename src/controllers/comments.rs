@@ -65,7 +65,7 @@ async fn update_and_populate(
   let filter = doc! { "_id": id };
   collection.update_one(filter.clone(), update).await?;
   match collection.find_one(filter).await? {
-    Some(comment) => Ok(Some(populate_replies(collection.clone(), comment).await?)),
+    Some(comment) => Ok(Some(populate_replies(collection.clone(), comment, None).await?)),
     None => Ok(None),
   }
 }
@@ -226,25 +226,48 @@ pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<(u64, Opti
 ///
 /// * `client` — The MongoDB client connection.
 /// * `path` — The page path to filter by (e.g. `/blog/some-post`).
+/// * `actor` — If provided, private comments by this author are included.
+///   Private comments by other authors are filtered out.
 ///
 /// # Behavior
 ///
 /// Only comments where `reply_to` is `null` are returned at the top level;
 /// nested replies are resolved recursively via [`populate_replies`].
+/// Public comments (where `is_private` is `null` or `false`) are always
+/// returned. Private comments are only returned if `actor` matches
+/// the comment's `author`.
 ///
 /// # Returns
 ///
 /// A `Vec<PopulatedComment>` of top-level comments with nested reply trees.
-pub async fn list_comments(client: &Client, path: &str) -> Result<Vec<PopulatedComment>, DbError> {
+pub async fn list_comments(
+  client: &Client,
+  path: &str,
+  actor: Option<&str>,
+) -> Result<Vec<PopulatedComment>, DbError> {
   let collection = get_collection(client);
 
-  // Only fetch top-level comments
-  let filter = doc! { "path": path, "reply_to": null };
+  // Only fetch top-level comments that are either public or authored by the actor
+  let filter = match actor {
+    Some(username) => doc! {
+      "path": path,
+      "reply_to": null,
+      "$or": [
+        { "is_private": { "$ne": true } },
+        { "is_private": true, "author": username },
+      ],
+    },
+    None => doc! {
+      "path": path,
+      "reply_to": null,
+      "is_private": { "$ne": true },
+    },
+  };
   let top_level: Vec<BlogComment> = collection.find(filter).await?.try_collect().await?;
 
   let mut populated = Vec::with_capacity(top_level.len());
   for comment in top_level {
-    let p = populate_replies(collection.clone(), comment).await?;
+    let p = populate_replies(collection.clone(), comment, actor).await?;
     populated.push(p);
   }
 
@@ -256,10 +279,13 @@ pub async fn list_comments(client: &Client, path: &str) -> Result<Vec<PopulatedC
 /// Converts a [`BlogComment`] (which stores replies as a flat list of ID
 /// strings) into a [`PopulatedComment`] with fully resolved, nested `replies`.
 ///
+/// Private replies by other authors are filtered out.
+///
 /// # Arguments
 ///
 /// * `collection` — Handle to the `comments` collection.
 /// * `comment` — The comment whose replies should be populated.
+/// * `actor` — If provided, private replies by this author are included.
 ///
 /// # Returns
 ///
@@ -268,6 +294,7 @@ pub async fn list_comments(client: &Client, path: &str) -> Result<Vec<PopulatedC
 async fn populate_replies(
   collection: mongodb::Collection<BlogComment>,
   comment: BlogComment,
+  actor: Option<&str>,
 ) -> Result<PopulatedComment, DbError> {
   if comment.replies.is_empty() {
     return Ok(PopulatedComment::from_comment(comment, vec![]));
@@ -277,9 +304,21 @@ async fn populate_replies(
   let filter = doc! { "_id": { "$in": &reply_oids } };
   let reply_comments: Vec<BlogComment> = collection.find(filter).await?.try_collect().await?;
 
-  let futures: Vec<_> = reply_comments
+  // Filter out private replies by other authors
+  let visible_replies: Vec<BlogComment> = reply_comments
     .into_iter()
-    .map(|reply| Box::pin(populate_replies(collection.clone(), reply)))
+    .filter(|reply| {
+      if reply.is_private == Some(true) {
+        actor.is_some_and(|a| a == reply.author)
+      } else {
+        true
+      }
+    })
+    .collect();
+
+  let futures: Vec<_> = visible_replies
+    .into_iter()
+    .map(|reply| Box::pin(populate_replies(collection.clone(), reply, actor)))
     .collect();
 
   let mut populated_replies = Vec::with_capacity(futures.len());

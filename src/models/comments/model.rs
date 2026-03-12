@@ -66,6 +66,10 @@ pub struct BlogComment {
   /// not idempotent.
   #[serde(default)]
   pub likes: i64,
+  /// Whether this comment is private (visible only to its author).
+  /// `None` or `false` means public.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub is_private: Option<bool>,
   /// Hex ObjectId of the parent comment, if this is a reply.
   /// `None` for top-level comments.
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -102,6 +106,9 @@ pub struct PopulatedComment {
   pub path: String,
   /// Number of likes.
   pub likes: i64,
+  /// Whether this comment is private (visible only to its author).
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub is_private: Option<bool>,
   /// Hex ObjectId of the parent comment, if this is a reply.
   #[serde(skip_serializing_if = "Option::is_none")]
   pub reply_to: Option<String>,
@@ -126,6 +133,7 @@ impl PopulatedComment {
       edited_time: comment.edited_time,
       path: comment.path,
       likes: comment.likes,
+      is_private: comment.is_private,
       reply_to: comment.reply_to,
       replies: populated_replies,
     }

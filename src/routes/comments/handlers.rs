@@ -44,9 +44,9 @@ pub async fn handle_message(
       handle_like(db, id).await,
     CommentRequest::Delete { id } =>
       handle_delete(db, id).await,
-    CommentRequest::List { path } => {
+    CommentRequest::List { path, actor } => {
       *active_route = Some(path.clone());
-      handle_list(db, path).await
+      handle_list(db, path, actor).await
     }
   }
 }
@@ -140,8 +140,9 @@ async fn handle_delete(
 async fn handle_list(
   db: &mongodb::Client,
   path: String,
+  actor: Option<String>,
 ) -> Handled {
-  match comments::list_comments(db, &path).await {
+  match comments::list_comments(db, &path, actor.as_deref()).await {
     Ok(list) => (CommentResponse::List { comments: list }, None),
     Err(e) => err(format!("failed to list comments: {e}")),
   }

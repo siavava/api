@@ -44,6 +44,7 @@ pub enum CommentRequest {
   },
   List {
     path: String,
+    actor: Option<String>,
   },
 }
 
