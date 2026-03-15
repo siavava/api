@@ -165,8 +165,15 @@ where
       notify_listener_count,
     });
 
+    // ! IF YOU CONNECT, WE'LL PING YOU SO WE KNOW WHEN YOU GIVE UP.
     Self::spawn_ping(Arc::clone(&this));
-    Self::spawn_listen(Arc::clone(&this));
+
+    // ! MUTING SSE NOTIFICATIONS FOR NOW SINCE THIS IS NO LONGER USED.
+    // ? (
+    // ?    this will set up a persistent connection to mongo
+    // ?    which we do not want.
+    // ? )
+    // Self::spawn_listen(Arc::clone(&this));
 
     this
   }
@@ -194,7 +201,7 @@ where
   /// # Arguments
   ///
   /// * `this` — An `Arc` reference to the broadcaster instance.
-  fn spawn_listen(this: Arc<Self>) {
+  fn _spawn_listen(this: Arc<Self>) {
     actix_web::rt::spawn(async move {
       this.listen().await;
     });
