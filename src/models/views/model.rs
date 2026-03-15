@@ -27,7 +27,7 @@ pub struct PageViews {
 ///
 /// Two `PageViews` with the same route are considered equal regardless of
 /// `count`. This is used by
-/// [`EventsBroadcaster`](crate::controllers::EventsBroadcaster) to match SSE
+/// [`EventsBroadcaster`](crate::protocol::sse::EventsBroadcaster) to match SSE
 /// client filters against incoming changes.
 impl PartialEq for PageViews {
   fn eq(&self, other: &Self) -> bool {

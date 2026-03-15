@@ -3,7 +3,7 @@
 
 use crate::{
   controllers::views,
-  controllers::ws::send_json,
+  protocol::ws::send_json,
   models::connect::ConnectResponse,
   models::views::{ViewsRequest, ViewsResponse},
 };

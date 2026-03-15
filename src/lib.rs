@@ -22,16 +22,18 @@
 //! It is cloned into every Actix-Web worker via `web::Data`.
 //! Use the [`app_state!`] macro for convenient construction.
 
-use controllers::{EventsBroadcaster, views};
+use controllers::views;
 use models::comments::CommentEvent;
 use models::views::{PageViews, ViewEvent};
 use mongodb::Client;
+use protocol::sse::EventsBroadcaster;
 use std::sync::{Arc, atomic::AtomicUsize};
 use tokio::sync::broadcast;
 
 pub mod controllers;
 pub mod db;
 pub mod models;
+pub mod protocol;
 pub mod routes;
 
 /// Shared application state, passed to all route handlers via

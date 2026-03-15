@@ -10,7 +10,7 @@
 use crate::{
   AppState,
   controllers::views,
-  controllers::ws::send_json,
+  protocol::ws::send_json,
   models::comments::{CommentEvent, CommentResponse},
   models::connect::{ClientChannels, ConnectRequest, ConnectResponse},
   models::views::ViewsResponse,

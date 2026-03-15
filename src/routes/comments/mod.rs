@@ -16,7 +16,7 @@
 
 pub mod handlers;
 
-use crate::{AppState, controllers::ws::send_json, models::comments::CommentEvent};
+use crate::{AppState, protocol::ws::send_json, models::comments::CommentEvent};
 use handlers::ws::handle_message;
 
 use actix_web::{

@@ -1,4 +1,4 @@
-//! # Events Broadcaster
+//! # SSE Broadcaster
 //!
 //! Generic Server-Sent Events (SSE) broadcaster backed by MongoDB change
 //! streams.
