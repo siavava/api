@@ -36,7 +36,19 @@ from models.comment import Comment  # noqa: E402
 PREFIX = "<b>:"
 
 
-def migrate(db_name: str, mongo_uri: str, *, apply: bool = False):
+def migrate(db_name: str, mongo_uri: str, *, apply: bool = False) -> None:
+  """Prefix comment ``path`` fields with :data:`PREFIX` (``<b>:``).
+
+  Finds all comments whose ``path`` starts with ``/`` but is not already
+  prefixed, prints the planned changes, and optionally applies them via a
+  single ``update_many`` with an aggregation pipeline.
+
+  Args:
+    db_name: MongoDB database name (e.g. ``feed`` or ``feed-dev``).
+    mongo_uri: MongoDB connection string.
+    apply: If ``False`` (default), perform a dry run. If ``True``, write
+        the updates to the database.
+  """
   client: MongoClient[dict[str, object]] = MongoClient(mongo_uri)
   db = client[db_name]
   collection = db["comments"]
@@ -70,7 +82,8 @@ def migrate(db_name: str, mongo_uri: str, *, apply: bool = False):
   print(f"\nUpdated {result.modified_count} document(s).")
 
 
-def main():
+def main() -> None:
+  """CLI entry point. Parse arguments, load ``.env``, and run the migration."""
   parser = argparse.ArgumentParser(description="Migrate comment paths.")
   parser.add_argument(
     "--apply",

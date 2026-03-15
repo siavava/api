@@ -1,3 +1,9 @@
+"""Comment model for migration scripts.
+
+Mirrors the ``BlogComment`` Rust struct (``src/models/comments/model.rs``)
+stored in the MongoDB ``comments`` collection.
+"""
+
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
@@ -7,7 +13,23 @@ from bson import ObjectId
 
 @dataclass
 class Comment:
-  """Mirrors the `BlogComment` Rust struct stored in the `comments` collection."""
+  """A single blog comment, matching the ``BlogComment`` Rust struct.
+
+  Attributes:
+    text: Raw plain-text content of the comment.
+    markup: Pre-rendered markup (e.g. HTML) of the comment.
+    author: Display name of the comment author.
+    path: Page path the comment belongs to (e.g. ``<b>:/shorts/2026-01-voir-dire``).
+    created_time: ISO 8601 timestamp set on creation (server-side in Rust).
+    edited_time: ISO 8601 timestamp of last edit, or ``None`` if never edited.
+    likes: Non-negative like count.
+    is_private: When ``True`` the comment is only visible to its author.
+        ``None`` or ``False`` means public.
+    reply_to: Hex ``ObjectId`` of the parent comment if this is a reply,
+        or ``None`` for top-level comments.
+    replies: Hex ``ObjectId`` strings of direct child replies.
+    id: MongoDB document ``_id``. ``None`` for comments not yet persisted.
+  """
 
   text: str
   markup: str
@@ -25,7 +47,15 @@ class Comment:
 
   @classmethod
   def from_doc(cls, doc: dict[str, object]) -> Comment:
-    """Create a Comment from a MongoDB document."""
+    """Construct a :class:`Comment` from a raw MongoDB document.
+
+    Args:
+      doc: A dictionary as returned by ``pymongo``'s ``find()`` or
+          ``find_one()``.
+
+    Returns:
+      A populated :class:`Comment` instance.
+    """
     return cls(
       id=doc.get("_id"),  # type: ignore[arg-type]
       text=str(doc.get("text", "")),
@@ -41,7 +71,14 @@ class Comment:
     )
 
   def to_doc(self) -> dict[str, object]:
-    """Convert to a MongoDB-ready document."""
+    """Convert this comment to a MongoDB-ready document.
+
+    Optional fields that are ``None`` are omitted from the output,
+    matching the ``skip_serializing_if`` behaviour in the Rust model.
+
+    Returns:
+      A dictionary suitable for ``insert_one()`` or ``replace_one()``.
+    """
     doc: dict[str, object] = {
       "text": self.text,
       "markup": self.markup,
