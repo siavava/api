@@ -6,6 +6,7 @@
 //! All functions operate against the `comments` MongoDB collection and return
 //! domain types from [`crate::models::comments`].
 
+use crate::db::parse_oids;
 use crate::models::comments::{BlogComment, CommentEdit, PopulatedComment};
 
 use chrono::Utc;
@@ -25,22 +26,6 @@ const COLL_NAME: &str = "comments";
 /// A `mongodb::Collection<BlogComment>` bound to the `comments` collection.
 fn get_collection(client: &Client) -> mongodb::Collection<BlogComment> {
   crate::db::collection(client, COLL_NAME)
-}
-
-/// Parses a list of hex `ObjectId` strings, skipping any that are invalid.
-///
-/// # Arguments
-///
-/// * `ids` — Slice of hex-encoded ObjectId strings.
-///
-/// # Returns
-///
-/// A `Vec<ObjectId>` containing only the successfully parsed entries.
-fn parse_oids(ids: &[String]) -> Vec<ObjectId> {
-  ids
-    .iter()
-    .filter_map(|s| ObjectId::parse_str(s).ok())
-    .collect()
 }
 
 /// Applies an update to a comment, then re-fetches it with its reply tree

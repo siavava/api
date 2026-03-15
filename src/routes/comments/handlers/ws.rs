@@ -1,10 +1,10 @@
-//! Per-action handlers for comment WebSocket requests.
+//! WebSocket action handlers for comment operations.
 
 use crate::{
   controllers::comments,
+  db::parse_oid,
   models::comments::{BlogComment, CommentEdit, CommentRequest, CommentResponse},
 };
-use mongodb::bson::oid::ObjectId;
 
 /// Response paired with an optional broadcast path.
 ///
@@ -16,11 +16,6 @@ pub type Handled = (CommentResponse, Option<String>);
 /// Helper to build an error [`Handled`] tuple (never broadcast).
 fn err(message: impl Into<String>) -> Handled {
   (CommentResponse::Error { message: message.into() }, None)
-}
-
-/// Parses a hex string as an `ObjectId`.
-fn parse_oid(id: &str) -> Result<ObjectId, String> {
-  ObjectId::parse_str(id).map_err(|e| format!("invalid id: {e}"))
 }
 
 /// Parses a raw WebSocket text frame and dispatches it to the

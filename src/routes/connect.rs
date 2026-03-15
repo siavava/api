@@ -9,11 +9,13 @@
 
 use crate::{
   AppState,
-  controllers::views::{self, ViewsIncrement},
+  controllers::views,
+  controllers::ws::send_json,
   models::comments::{CommentEvent, CommentResponse},
-  models::connect::{ClientChannels, ConnectRequest, ConnectResponse, EventSenders},
-  models::views::{ViewEvent, ViewsRequest, ViewsResponse},
-  routes::comments::handlers as comment_handlers,
+  models::connect::{ClientChannels, ConnectRequest, ConnectResponse},
+  models::views::ViewsResponse,
+  routes::comments::handlers::ws as comment_handlers,
+  routes::views::handlers::ws as view_handlers,
 };
 
 use actix_web::{Error as ActixError, HttpRequest, HttpResponse, get, web::Data};
@@ -24,30 +26,11 @@ use std::sync::{
   atomic::{AtomicUsize, Ordering},
 };
 use tokio::sync::broadcast;
-use tracing::{error, info};
+use tracing::info;
 
 /// Registers the `/connect/` WebSocket endpoint.
 pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(connect_ws);
-}
-
-/// Serializes a [`ConnectResponse`] and sends it over the WebSocket.
-///
-/// Returns `false` if the send failed (connection should be closed).
-async fn send_response(session: &mut Session, response: &ConnectResponse) -> bool {
-  match serde_json::to_string(response) {
-    Ok(json) => {
-      if let Err(e) = session.text(json).await {
-        error!("failed to send ws message: {e}");
-        return false;
-      }
-      true
-    }
-    Err(e) => {
-      error!("failed to serialize response: {e}");
-      true
-    }
-  }
 }
 
 /// `GET /api/connect/` — unified WebSocket endpoint.
@@ -109,7 +92,7 @@ async fn ws_event_loop(
         }
 
         if active_path != prev_path {
-          track_page_view(&db_client, &senders, active_path.as_deref()).await;
+          views::track_page_view(&db_client, &senders, active_path.as_deref()).await;
         }
       }
 
@@ -119,7 +102,7 @@ async fn ws_event_loop(
           continue;
         }
         let response = ConnectResponse::Comments(event.response);
-        if !send_response(&mut session, &response).await {
+        if !send_json(&mut session, &response).await {
           break;
         }
       }
@@ -132,14 +115,14 @@ async fn ws_event_loop(
         let response = ConnectResponse::Views(ViewsResponse::Update {
           views: event.views,
         });
-        if !send_response(&mut session, &response).await {
+        if !send_json(&mut session, &response).await {
           break;
         }
       }
 
       Ok(count) = receivers.active_count.recv() => {
         let response = ConnectResponse::Views(ViewsResponse::ActiveCount { count });
-        if !send_response(&mut session, &response).await {
+        if !send_json(&mut session, &response).await {
           break;
         }
       }
@@ -149,21 +132,6 @@ async fn ws_event_loop(
   // Client disconnected — decrement count and notify.
   let count = active_clients.fetch_sub(1, Ordering::Relaxed) - 1;
   let _ = senders.active_count.send(count);
-}
-
-/// Increments the view count for a path and broadcasts the update.
-///
-/// Called when a client's active path changes. No-ops if `path` is `None`.
-async fn track_page_view(
-  db_client: &mongodb::Client,
-  senders: &EventSenders,
-  path: Option<&str>,
-) {
-  if let Some(path) = path
-    && let Ok(updated) = views::get_views(db_client, path, ViewsIncrement::INCREMENT).await
-  {
-    let _ = senders.views.send(ViewEvent { views: updated });
-  }
 }
 
 /// Processes a single incoming WebSocket frame.
@@ -182,7 +150,7 @@ async fn handle_ws_frame(
         Ok(req) => req,
         Err(e) => {
           let response = ConnectResponse::Comments(CommentResponse::Error { message: e });
-          return send_response(session, &response).await;
+          return send_json(session, &response).await;
         }
       };
 
@@ -195,12 +163,12 @@ async fn handle_ws_frame(
             let _ = comment_tx.send(CommentEvent { path, response });
           } else {
             let wrapped = ConnectResponse::Comments(response);
-            return send_response(session, &wrapped).await;
+            return send_json(session, &wrapped).await;
           }
           true
         }
         ConnectRequest::Views(views_req) => {
-          handle_views_request(db_client, session, views_req).await
+          view_handlers::handle_ws_request(db_client, session, views_req).await
         }
       }
     }
@@ -211,19 +179,4 @@ async fn handle_ws_frame(
     }
     _ => true,
   }
-}
-
-/// Handles a views-scoped request.
-async fn handle_views_request(
-  db_client: &mongodb::Client,
-  session: &mut Session,
-  request: ViewsRequest,
-) -> bool {
-  let response = match request {
-    ViewsRequest::List => {
-      let all = views::get_all_views(db_client).await.unwrap_or_default();
-      ConnectResponse::Views(ViewsResponse::List { views: all })
-    }
-  };
-  send_response(session, &response).await
 }

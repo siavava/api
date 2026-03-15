@@ -16,8 +16,8 @@
 
 pub mod handlers;
 
-use crate::{AppState, models::comments::CommentEvent};
-use handlers::handle_message;
+use crate::{AppState, controllers::ws::send_json, models::comments::CommentEvent};
+use handlers::ws::handle_message;
 
 use actix_web::{
   Error as ActixError, HttpRequest, HttpResponse, get,
@@ -26,35 +26,11 @@ use actix_web::{
 use actix_ws::{Message, Session};
 use futures_util::StreamExt;
 use tokio::sync::broadcast;
-use tracing::{error, info};
+use tracing::info;
 
 /// Registers the `/comments/` WebSocket endpoint.
 pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(scope("/comments").service(comments_ws));
-}
-
-/// Serializes a [`CommentResponse`] and sends it over the
-/// WebSocket session.
-///
-/// Returns `false` if the send failed (connection should be
-/// closed).
-async fn send_response(
-  session: &mut Session,
-  response: &crate::models::comments::CommentResponse,
-) -> bool {
-  match serde_json::to_string(response) {
-    Ok(json) => {
-      if let Err(e) = session.text(json).await {
-        error!("failed to send ws message: {e}");
-        return false;
-      }
-      true
-    }
-    Err(e) => {
-      error!("failed to serialize response: {e}");
-      true // serialization error isn't a connection failure
-    }
-  }
 }
 
 /// `GET /comments/` — WebSocket endpoint for real-time comment
@@ -240,7 +216,7 @@ async fn ws_event_loop(
         if !matches_active_route(&active_route, &event.path) {
           continue;
         }
-        if !send_response(&mut session, &event.response).await {
+        if !send_json(&mut session, &event.response).await {
           break;
         }
       }
@@ -278,7 +254,7 @@ async fn handle_ws_frame(
           response,
         });
       } else {
-        return send_response(session, &response).await;
+        return send_json(session, &response).await;
       }
       true
     }

@@ -27,5 +27,7 @@ pub mod events;
 pub mod location;
 /// Page view counting and retrieval.
 pub mod views;
+/// Shared WebSocket session utilities.
+pub mod ws;
 
 pub use events::EventsBroadcaster;

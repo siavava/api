@@ -6,6 +6,7 @@
 //! MongoDB collection, as well as the [`views!`](crate::views) and
 //! [`all_views!`](crate::all_views) convenience macros.
 
+use crate::models::connect::EventSenders;
 use crate::models::views::*;
 
 use futures::TryStreamExt;
@@ -152,6 +153,21 @@ pub async fn get_all_views(client: &Client) -> Result<Vec<PageViews>, DbError> {
   let mut views: Vec<PageViews> = collection.find(doc! {}).await?.try_collect().await?;
   views.sort_by(|a, b| b.count.cmp(&a.count));
   Ok(views)
+}
+
+/// Increments the view count for a path and broadcasts the update.
+///
+/// Called when a client's active path changes. No-ops if `path` is `None`.
+pub async fn track_page_view(
+  client: &Client,
+  senders: &EventSenders,
+  path: Option<&str>,
+) {
+  if let Some(path) = path
+    && let Ok(updated) = get_views(client, path, ViewsIncrement::INCREMENT).await
+  {
+    let _ = senders.views.send(ViewEvent { views: updated });
+  }
 }
 
 /// Convenience macro: fetches views for `$requested`, incrementing only if

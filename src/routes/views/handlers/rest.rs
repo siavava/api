@@ -1,4 +1,4 @@
-//! Per-action REST handlers for view-count endpoints.
+//! REST handlers for view-count endpoints.
 
 use crate::{AppState, all_views, models::views::PageViews, views};
 
