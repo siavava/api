@@ -89,7 +89,6 @@ async fn main() -> Result<()> {
       .service(greet)
       .configure(routes::register)
   })
-  // .bind(("127.0.0.1", port))?
   .bind(("0.0.0.0", port))?
   .run()
   .await
