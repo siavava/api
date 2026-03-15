@@ -12,7 +12,6 @@ use actix_web::{
   Error as ActixError, HttpResponse, get,
   web::{Data, Query, scope},
 };
-use log::info;
 use mongodb::bson::doc;
 use serde::Deserialize;
 
@@ -74,15 +73,11 @@ async fn get_location(
 
   match (city, state) {
     (Some(city_str), Some(state_str)) => {
-      info!("fetching city: {}, state: {}", city_str, state_str);
       let res = location!(eval & db_client, eval & city_str, eval & state_str);
-      info!("res (1): {:?}", res);
       Ok(HttpResponse::Ok().json(res))
     }
     _ => {
-      info!("fetching last known location without updating");
       let res = location!(eval & db_client);
-      info!("res (2): {:?}", res);
       Ok(HttpResponse::Ok().json(res))
     }
   }

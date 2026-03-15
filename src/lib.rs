@@ -26,7 +26,7 @@ use controllers::views;
 use models::comments::CommentEvent;
 use models::views::{PageViews, ViewEvent};
 use mongodb::Client;
-use protocol::sse::EventsBroadcaster;
+use protocol::sse;
 use std::sync::{Arc, atomic::AtomicUsize};
 use tokio::sync::broadcast;
 
@@ -44,7 +44,7 @@ pub struct AppState {
   pub db_client: Client,
   /// SSE broadcaster for real-time page view updates.
   /// Watches the `views` collection and pushes changes to connected SSE clients.
-  pub view_events_handler: Arc<EventsBroadcaster<PageViews>>,
+  pub view_events_handler: Arc<sse::EventsBroadcaster<PageViews>>,
   /// Broadcast channel for real-time comment events (create, edit, like, delete).
   /// Each WebSocket client subscribes and receives events for its active route.
   pub comment_events: broadcast::Sender<CommentEvent>,
@@ -61,7 +61,7 @@ impl AppState {
   /// Creates a new [`AppState`], initializing broadcasters.
   pub fn new(db_client: Client) -> Self {
     let views_collection = views::get_collection(&db_client);
-    let view_events_handler = EventsBroadcaster::<PageViews>::create(views_collection, true);
+    let view_events_handler = sse::EventsBroadcaster::<PageViews>::create(views_collection, true);
     let (comment_events, _) = broadcast::channel::<CommentEvent>(256);
     let (view_events, _) = broadcast::channel::<ViewEvent>(256);
     let (active_count_events, _) = broadcast::channel::<usize>(256);

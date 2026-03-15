@@ -4,7 +4,7 @@
 //!
 //! | Module | Protocol | Description                                |
 //! |--------|----------|--------------------------------------------|
-//! | [`ws`] | WS       | WebSocket action handlers (CRUD + list).   |
+//! | [`socket`] | WS   | WebSocket action handlers (CRUD + list).   |
 
 /// WebSocket action handlers for comment operations.
-pub mod ws;
+pub mod socket;

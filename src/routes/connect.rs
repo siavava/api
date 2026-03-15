@@ -10,12 +10,12 @@
 use crate::{
   AppState,
   controllers::views,
-  protocol::ws::send_json,
+  protocol::socket,
   models::comments::{CommentEvent, CommentResponse},
   models::connect::{ClientChannels, ConnectRequest, ConnectResponse},
   models::views::ViewsResponse,
-  routes::comments::handlers::ws as comment_handlers,
-  routes::views::handlers::ws as view_handlers,
+  routes::comments::handlers::socket as comment_handlers,
+  routes::views::handlers::socket as view_handlers,
 };
 
 use actix_web::{Error as ActixError, HttpRequest, HttpResponse, get, web::Data};
@@ -102,7 +102,7 @@ async fn ws_event_loop(
           continue;
         }
         let response = ConnectResponse::Comments(event.response);
-        if !send_json(&mut session, &response).await {
+        if !socket::send_json(&mut session, &response).await {
           break;
         }
       }
@@ -115,14 +115,14 @@ async fn ws_event_loop(
         let response = ConnectResponse::Views(ViewsResponse::Update {
           views: event.views,
         });
-        if !send_json(&mut session, &response).await {
+        if !socket::send_json(&mut session, &response).await {
           break;
         }
       }
 
       Ok(count) = receivers.active_count.recv() => {
         let response = ConnectResponse::Views(ViewsResponse::ActiveCount { count });
-        if !send_json(&mut session, &response).await {
+        if !socket::send_json(&mut session, &response).await {
           break;
         }
       }
@@ -150,7 +150,7 @@ async fn handle_ws_frame(
         Ok(req) => req,
         Err(e) => {
           let response = ConnectResponse::Comments(CommentResponse::Error { message: e });
-          return send_json(session, &response).await;
+          return socket::send_json(session, &response).await;
         }
       };
 
@@ -163,7 +163,7 @@ async fn handle_ws_frame(
             let _ = comment_tx.send(CommentEvent { path, response });
           } else {
             let wrapped = ConnectResponse::Comments(response);
-            return send_json(session, &wrapped).await;
+            return socket::send_json(session, &wrapped).await;
           }
           true
         }

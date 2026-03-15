@@ -16,8 +16,8 @@
 
 pub mod handlers;
 
-use crate::{AppState, protocol::ws::send_json, models::comments::CommentEvent};
-use handlers::ws::handle_message;
+use crate::{AppState, protocol::socket, models::comments::CommentEvent};
+use handlers::socket::handle_message;
 
 use actix_web::{
   Error as ActixError, HttpRequest, HttpResponse, get,
@@ -216,7 +216,7 @@ async fn ws_event_loop(
         if !matches_active_route(&active_route, &event.path) {
           continue;
         }
-        if !send_json(&mut session, &event.response).await {
+        if !socket::send_json(&mut session, &event.response).await {
           break;
         }
       }
@@ -254,7 +254,7 @@ async fn handle_ws_frame(
           response,
         });
       } else {
-        return send_json(session, &response).await;
+        return socket::send_json(session, &response).await;
       }
       true
     }

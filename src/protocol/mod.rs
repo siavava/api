@@ -8,10 +8,10 @@
 //!
 //! | Module | Protocol | Description                                            |
 //! |--------|----------|--------------------------------------------------------|
-//! | [`ws`] | WebSocket| JSON serialization helpers for WebSocket sessions.     |
+//! | [`socket`] | WebSocket| JSON serialization helpers for WebSocket sessions. |
 //! | [`sse`]| SSE      | Generic broadcaster backed by MongoDB change streams.  |
 
 /// WebSocket session utilities.
-pub mod ws;
+pub mod socket;
 /// Server-Sent Events broadcaster backed by MongoDB change streams.
 pub mod sse;

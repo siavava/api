@@ -3,7 +3,7 @@
 
 use crate::{
   controllers::views,
-  protocol::ws::send_json,
+  protocol::socket,
   models::connect::ConnectResponse,
   models::views::{ViewsRequest, ViewsResponse},
 };
@@ -25,5 +25,5 @@ pub async fn handle_ws_request(
       ConnectResponse::Views(ViewsResponse::List { views: all })
     }
   };
-  send_json(session, &response).await
+  socket::send_json(session, &response).await
 }

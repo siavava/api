@@ -14,7 +14,6 @@ use std::pin::Pin;
 
 use crate::models::location::*;
 use futures::{FutureExt, future::LocalBoxFuture};
-use log::info;
 use mongodb::{Client, bson::doc, error::Error as DbError};
 
 const COLL_NAME: &str = "location";
@@ -115,8 +114,6 @@ async fn update_location_history<'a>(
 ) -> Result<LocationData, DbError> {
   let history_collection = get_history_collection(client);
 
-  info!("UPDATING LOCATION HISTORY");
-
   let _ = history_collection
     .update_one(
       doc! { "city": city, "state": state },
@@ -151,8 +148,6 @@ async fn update_last_location<'a>(
   state: &'a str,
 ) -> Result<LocationData, DbError> {
   let collection = get_collection(client);
-
-  info!("UPDATING LAST LOCATION");
 
   let found = collection
     .find_one_and_update(doc! {}, doc! { "$set": { "city": city, "state": state } })
