@@ -35,6 +35,15 @@ pub async fn handle_message(
     Err(e) => return err(format!("invalid message: {e}")),
   };
 
+  handle_request(db, request, active_route).await
+}
+
+/// Dispatches a pre-parsed [`CommentRequest`] to the matching handler.
+pub async fn handle_request(
+  db: &mongodb::Client,
+  request: CommentRequest,
+  active_route: &mut Option<String>,
+) -> Handled {
   match request {
     CommentRequest::Create { comment, reply_to } =>
       handle_create(db, comment, reply_to).await,

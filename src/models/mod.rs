@@ -16,6 +16,8 @@
 
 /// Data models for blog comments, replies, and WebSocket protocol messages.
 pub mod comments;
+/// Unified WebSocket protocol types for `/api/connect`.
+pub mod connect;
 /// Data model for location tracking.
 pub mod location;
 /// Data model for page view counts.

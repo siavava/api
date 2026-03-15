@@ -8,15 +8,18 @@
 //!
 //! # Sub-modules
 //!
-//! | Module       | Prefix       | Protocol      | Description                          |
-//! |--------------|--------------|---------------|--------------------------------------|
-//! | [`comments`] | `/comments/` | WebSocket     | Real-time comment operations.        |
-//! | [`location`] | `/location/` | REST (GET)    | Location tracking read/update.       |
-//! | [`quotes`]   | `/` + `/quotes/` | REST + HTML | Quote display and retrieval.     |
-//! | [`views`]    | `/views/`    | REST + SSE    | Page view counts and live updates.   |
+//! | Module       | Prefix           | Protocol      | Description                                  |
+//! |--------------|------------------|---------------|----------------------------------------------|
+//! | [`connect`]  | `/api/connect/`  | WebSocket     | Unified real-time endpoint (comments + views).|
+//! | [`comments`] | `/comments/`     | WebSocket     | Legacy comment-only WebSocket.               |
+//! | [`location`] | `/location/`     | REST (GET)    | Location tracking read/update.               |
+//! | [`quotes`]   | `/` + `/quotes/` | REST + HTML   | Quote display and retrieval.                 |
+//! | [`views`]    | `/views/`        | REST + SSE    | Page view counts and live updates.           |
 
+/// Unified WebSocket endpoint for comments and view-count watch.
+mod connect;
 /// WebSocket endpoint for real-time comment operations.
-mod comments;
+pub mod comments;
 /// REST endpoint for location tracking.
 mod location;
 /// REST + HTML endpoints for quotes.
@@ -32,4 +35,5 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   views::register(cfg);
   location::register(cfg);
   comments::register(cfg);
+  connect::register(cfg);
 }

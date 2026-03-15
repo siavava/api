@@ -14,7 +14,7 @@
 //! connected client (including self) — are forwarded automatically
 //! via the broadcast channel.
 
-mod handlers;
+pub mod handlers;
 
 use crate::{AppState, models::comments::CommentEvent};
 use handlers::handle_message;
