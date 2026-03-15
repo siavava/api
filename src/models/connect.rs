@@ -7,9 +7,11 @@
 //! There is no separate "views" request scope — view updates are
 //! pushed automatically for the active path.
 
-use super::comments::{CommentRequest, CommentResponse};
-use super::views::{ViewsRequest, ViewsResponse};
+use super::comments::{CommentEvent, CommentRequest, CommentResponse};
+use super::views::{ViewEvent, ViewsRequest, ViewsResponse};
+use crate::AppState;
 use serde::Serialize;
+use tokio::sync::broadcast;
 
 /// Incoming WebSocket message from the client.
 ///
@@ -59,6 +61,48 @@ impl ConnectRequest {
         Ok(ConnectRequest::Comments(Box::new(req)))
       }
     }
+  }
+}
+
+/// Broadcast senders shared across all clients.
+/// Used to publish events that every subscriber will receive.
+pub struct EventSenders {
+  pub comments: broadcast::Sender<CommentEvent>,
+  pub views: broadcast::Sender<ViewEvent>,
+  pub active_count: broadcast::Sender<usize>,
+}
+
+/// Per-client broadcast receivers.
+/// Each client gets its own set of receivers upon connecting.
+pub struct EventReceivers {
+  pub comments: broadcast::Receiver<CommentEvent>,
+  pub views: broadcast::Receiver<ViewEvent>,
+  pub active_count: broadcast::Receiver<usize>,
+}
+
+/// Grouped sender/receiver handles for a single WebSocket client.
+pub struct ClientChannels {
+  pub senders: EventSenders,
+  pub receivers: EventReceivers,
+}
+
+impl ClientChannels {
+  /// Create a new set of channels for a client joining the WebSocket.
+  ///
+  /// Each receiver is subscribed from the corresponding sender on
+  /// [`AppState`], so the client will receive all future broadcasts.
+  pub fn from_app_state(state: &AppState) -> Self {
+    let senders = EventSenders {
+      comments: state.comment_events.clone(),
+      views: state.view_events.clone(),
+      active_count: state.active_count_events.clone(),
+    };
+    let receivers = EventReceivers {
+      comments: senders.comments.subscribe(),
+      views: senders.views.subscribe(),
+      active_count: senders.active_count.subscribe(),
+    };
+    Self { senders, receivers }
   }
 }
 

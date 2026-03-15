@@ -11,7 +11,7 @@ use crate::{
   AppState,
   controllers::views::{self, ViewsIncrement},
   models::comments::{CommentEvent, CommentResponse},
-  models::connect::{ConnectRequest, ConnectResponse},
+  models::connect::{ClientChannels, ConnectRequest, ConnectResponse, EventSenders},
   models::views::{ViewEvent, ViewsRequest, ViewsResponse},
   routes::comments::handlers as comment_handlers,
 };
@@ -19,7 +19,10 @@ use crate::{
 use actix_web::{Error as ActixError, HttpRequest, HttpResponse, get, web::Data};
 use actix_ws::{Message, Session};
 use futures_util::StreamExt;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+use std::sync::{
+  Arc,
+  atomic::{AtomicUsize, Ordering},
+};
 use tokio::sync::broadcast;
 use tracing::{error, info};
 
@@ -56,24 +59,19 @@ async fn connect_ws(
 ) -> Result<HttpResponse, ActixError> {
   let (response, session, msg_stream) = actix_ws::handle(&req, stream)?;
   let db_client = app_state.db_client.clone();
-  let comment_tx = app_state.comment_events.clone();
-  let comment_rx = comment_tx.subscribe();
-  let view_rx = app_state.view_events.subscribe();
-
-  let view_tx = app_state.view_events.clone();
+  let channels = ClientChannels::from_app_state(&app_state);
   let active_clients = app_state.active_clients.clone();
-  let active_count_tx = app_state.active_count_events.clone();
-  let active_count_rx = active_count_tx.subscribe();
 
   // Increment active client count and notify all clients.
   let count = active_clients.fetch_add(1, Ordering::Relaxed) + 1;
-  let _ = active_count_tx.send(count);
+  let _ = channels.senders.active_count.send(count);
 
   actix_web::rt::spawn(ws_event_loop(
-    session, msg_stream, db_client,
-    comment_tx, comment_rx,
-    view_tx, view_rx,
-    active_clients, active_count_tx, active_count_rx,
+    session,
+    msg_stream,
+    db_client,
+    channels,
+    active_clients,
   ));
 
   Ok(response)
@@ -88,14 +86,14 @@ async fn ws_event_loop(
   mut session: Session,
   mut msg_stream: actix_ws::MessageStream,
   db_client: mongodb::Client,
-  comment_tx: broadcast::Sender<CommentEvent>,
-  mut comment_rx: broadcast::Receiver<CommentEvent>,
-  view_tx: broadcast::Sender<ViewEvent>,
-  mut view_rx: broadcast::Receiver<ViewEvent>,
+  channels: ClientChannels,
   active_clients: Arc<AtomicUsize>,
-  active_count_tx: broadcast::Sender<usize>,
-  mut active_count_rx: broadcast::Receiver<usize>,
 ) {
+  let ClientChannels {
+    senders,
+    mut receivers,
+  } = channels;
+
   let mut active_path: Option<String> = None;
 
   loop {
@@ -105,22 +103,17 @@ async fn ws_event_loop(
         let prev_path = active_path.clone();
         if !handle_ws_frame(
           msg, &db_client, &mut session,
-          &comment_tx, &mut active_path,
+          &senders.comments, &mut active_path,
         ).await {
           break;
         }
 
-        // When the active path changes, increment the view count
-        // and broadcast the update to all clients via the WS channel.
-        if active_path != prev_path
-          && let Some(ref path) = active_path
-          && let Ok(updated) = views::get_views(&db_client, path, ViewsIncrement::INCREMENT).await
-        {
-          let _ = view_tx.send(ViewEvent { views: updated });
+        if active_path != prev_path {
+          track_page_view(&db_client, &senders, active_path.as_deref()).await;
         }
       }
 
-      event = comment_rx.recv() => {
+      event = receivers.comments.recv() => {
         let Ok(event) = event else { continue };
         if active_path.as_deref() != Some(&event.path) {
           continue;
@@ -131,7 +124,7 @@ async fn ws_event_loop(
         }
       }
 
-      event = view_rx.recv() => {
+      event = receivers.views.recv() => {
         let Ok(event) = event else { continue };
         if active_path.as_deref() != Some(event.views.route.as_str()) {
           continue;
@@ -144,7 +137,7 @@ async fn ws_event_loop(
         }
       }
 
-      Ok(count) = active_count_rx.recv() => {
+      Ok(count) = receivers.active_count.recv() => {
         let response = ConnectResponse::Views(ViewsResponse::ActiveCount { count });
         if !send_response(&mut session, &response).await {
           break;
@@ -155,7 +148,22 @@ async fn ws_event_loop(
 
   // Client disconnected — decrement count and notify.
   let count = active_clients.fetch_sub(1, Ordering::Relaxed) - 1;
-  let _ = active_count_tx.send(count);
+  let _ = senders.active_count.send(count);
+}
+
+/// Increments the view count for a path and broadcasts the update.
+///
+/// Called when a client's active path changes. No-ops if `path` is `None`.
+async fn track_page_view(
+  db_client: &mongodb::Client,
+  senders: &EventSenders,
+  path: Option<&str>,
+) {
+  if let Some(path) = path
+    && let Ok(updated) = views::get_views(db_client, path, ViewsIncrement::INCREMENT).await
+  {
+    let _ = senders.views.send(ViewEvent { views: updated });
+  }
 }
 
 /// Processes a single incoming WebSocket frame.
