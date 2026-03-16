@@ -18,6 +18,8 @@
 pub mod comments;
 /// Unified WebSocket protocol types for `/api/connect`.
 pub mod connect;
+/// Health-check diagnostics model.
+pub mod health;
 /// Data model for location tracking.
 pub mod location;
 /// Data model for page view counts.

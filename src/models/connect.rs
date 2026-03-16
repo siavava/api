@@ -8,6 +8,7 @@
 //! pushed automatically for the active path.
 
 use super::comments::{CommentEvent, CommentRequest, CommentResponse};
+use super::health::HealthDiagnostics;
 use super::views::{ViewEvent, ViewsRequest, ViewsResponse};
 use crate::AppState;
 use serde::Serialize;
@@ -32,6 +33,7 @@ use tokio::sync::broadcast;
 pub enum ConnectRequest {
   Comments(Box<CommentRequest>),
   Views(ViewsRequest),
+  Health,
 }
 
 impl ConnectRequest {
@@ -50,6 +52,7 @@ impl ConnectRequest {
       .unwrap_or("comments");
 
     match scope {
+      "health" => Ok(ConnectRequest::Health),
       "views" => {
         let req: ViewsRequest =
           serde_json::from_value(value).map_err(|e| format!("invalid views request: {e}"))?;
@@ -116,4 +119,6 @@ pub enum ConnectResponse {
   Comments(CommentResponse),
   /// A view-scoped response.
   Views(ViewsResponse),
+  /// A health-check diagnostics response.
+  Health(HealthDiagnostics),
 }

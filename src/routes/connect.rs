@@ -13,6 +13,7 @@ use crate::{
   protocol::socket,
   models::comments::{CommentEvent, CommentResponse},
   models::connect::{ClientChannels, ConnectRequest, ConnectResponse},
+  models::health::HealthDiagnostics,
   models::views::ViewsResponse,
   routes::comments::handlers::socket as comment_handlers,
   routes::views::handlers::socket as view_handlers,
@@ -41,7 +42,6 @@ async fn connect_ws(
   app_state: Data<AppState>,
 ) -> Result<HttpResponse, ActixError> {
   let (response, session, msg_stream) = actix_ws::handle(&req, stream)?;
-  let db_client = app_state.db_client.clone();
   let channels = ClientChannels::from_app_state(&app_state);
   let active_clients = app_state.active_clients.clone();
 
@@ -52,7 +52,7 @@ async fn connect_ws(
   actix_web::rt::spawn(ws_event_loop(
     session,
     msg_stream,
-    db_client,
+    app_state.into_inner().as_ref().clone(),
     channels,
     active_clients,
   ));
@@ -68,7 +68,7 @@ async fn connect_ws(
 async fn ws_event_loop(
   mut session: Session,
   mut msg_stream: actix_ws::MessageStream,
-  db_client: mongodb::Client,
+  app_state: AppState,
   channels: ClientChannels,
   active_clients: Arc<AtomicUsize>,
 ) {
@@ -85,14 +85,14 @@ async fn ws_event_loop(
         let Some(Ok(msg)) = ws_msg else { break };
         let prev_path = active_path.clone();
         if !handle_ws_frame(
-          msg, &db_client, &mut session,
+          msg, &app_state, &mut session,
           &senders.comments, &mut active_path,
         ).await {
           break;
         }
 
         if active_path != prev_path {
-          views::track_page_view(&db_client, &senders, active_path.as_deref()).await;
+          views::track_page_view(&app_state.db_client, &senders, active_path.as_deref()).await;
         }
       }
 
@@ -139,11 +139,12 @@ async fn ws_event_loop(
 /// Returns `false` if the connection should be closed.
 async fn handle_ws_frame(
   msg: Message,
-  db_client: &mongodb::Client,
+  app_state: &AppState,
   session: &mut Session,
   comment_tx: &broadcast::Sender<CommentEvent>,
   active_path: &mut Option<String>,
 ) -> bool {
+  let db_client = &app_state.db_client;
   match msg {
     Message::Text(text) => {
       let request = match ConnectRequest::parse(&text) {
@@ -169,6 +170,11 @@ async fn handle_ws_frame(
         }
         ConnectRequest::Views(views_req) => {
           view_handlers::handle_ws_request(db_client, session, views_req).await
+        }
+        ConnectRequest::Health => {
+          let diagnostics = HealthDiagnostics::collect(app_state).await;
+          let response = ConnectResponse::Health(diagnostics);
+          socket::send_json(session, &response).await
         }
       }
     }
