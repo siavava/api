@@ -11,11 +11,12 @@
 //! | GET    | `/quotes/`     | JSON      | All quotes as a JSON array.               |
 //! | GET    | `/quotes/test` | Text      | Plain-text health-check.                  |
 
+use crate::models::quotes;
+
 use actix_web::{
   HttpResponse, Responder, get,
   web::{Html, scope},
 };
-use serde::{Deserialize, Serialize};
 use tracing::info;
 
 /// Registers quote endpoints.
@@ -42,22 +43,6 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
       .service(test_quotes)
       .service(test),
   );
-}
-
-/// Wrapper for deserializing the static `quotes.json` file.
-#[derive(Deserialize, Debug)]
-struct QuoteData {
-  /// List of all quotes loaded from the JSON file.
-  quotes: Vec<Quote>,
-}
-
-/// A single quote with its text and attribution.
-#[derive(Serialize, Deserialize, Debug)]
-struct Quote {
-  /// The quote body (may contain HTML markup).
-  text: String,
-  /// Who said or wrote the quote.
-  author: String,
 }
 
 /// `GET /quotes/test` — plain-text health-check endpoint.
@@ -97,12 +82,9 @@ async fn test_quotes() -> HttpResponse {
 #[get("/")]
 async fn get_quotes() -> HttpResponse {
   info!("loading quotes");
-  let quote_data: QuoteData = serde_json::from_str(include_str!("../static/quotes.json"))
-    .expect("JSON was not well-formatted");
-
+  let all = quotes::get_all();
   info!("Quotes loaded successfully");
-
-  HttpResponse::Ok().json(quote_data.quotes)
+  HttpResponse::Ok().json(all)
 }
 
 /// `GET /` — serves a self-contained HTML page that cycles through all

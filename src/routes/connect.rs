@@ -171,8 +171,8 @@ async fn handle_ws_frame(
         ConnectRequest::Views(views_req) => {
           view_handlers::handle_ws_request(db_client, session, views_req).await
         }
-        ConnectRequest::Health => {
-          let diagnostics = HealthDiagnostics::collect(app_state).await;
+        ConnectRequest::Health(options) => {
+          let diagnostics = HealthDiagnostics::collect(app_state, &options).await;
           let response = ConnectResponse::Health(diagnostics);
           socket::send_json(session, &response).await
         }
