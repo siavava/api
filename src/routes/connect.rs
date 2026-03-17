@@ -9,10 +9,10 @@
 
 use crate::{
   AppState,
-  controllers::views,
+  controllers::{opengraph, views},
   protocol::socket,
   models::comments::{CommentEvent, CommentResponse},
-  models::connect::{ClientChannels, ConnectRequest, ConnectResponse},
+  models::connect::{ClientChannels, ConnectRequest, ConnectResponse, OpenGraphResponse},
   models::health::HealthDiagnostics,
   models::views::ViewsResponse,
   routes::comments::handlers::socket as comment_handlers,
@@ -174,6 +174,14 @@ async fn handle_ws_frame(
         ConnectRequest::Health(options) => {
           let diagnostics = HealthDiagnostics::collect(app_state, &options).await;
           let response = ConnectResponse::Health(diagnostics);
+          socket::send_json(session, &response).await
+        }
+        ConnectRequest::OpenGraph(req) => {
+          let og_response = match opengraph::fetch_opengraph(&req.url).await {
+            Ok(data) => OpenGraphResponse::Data(data),
+            Err(e) => OpenGraphResponse::Error { message: e },
+          };
+          let response = ConnectResponse::OpenGraph(og_response);
           socket::send_json(session, &response).await
         }
       }

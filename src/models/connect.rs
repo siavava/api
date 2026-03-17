@@ -9,9 +9,10 @@
 
 use super::comments::{CommentEvent, CommentRequest, CommentResponse};
 use super::health::{HealthDiagnostics, HealthOptions};
+use super::opengraph::OpenGraphData;
 use super::views::{ViewEvent, ViewsRequest, ViewsResponse};
 use crate::AppState;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 /// Incoming WebSocket message from the client.
@@ -29,11 +30,19 @@ use tokio::sync::broadcast;
 /// { "action": "list", "path": "/blog/post-1" }
 /// { "scope": "comments", "action": "create", "comment": { ... } }
 /// ```
+/// Request payload for an OpenGraph fetch over WebSocket.
+#[derive(Debug, Deserialize)]
+pub struct OpenGraphRequest {
+  /// The URL to fetch OpenGraph data from.
+  pub url: String,
+}
+
 #[derive(Debug)]
 pub enum ConnectRequest {
   Comments(Box<CommentRequest>),
   Views(ViewsRequest),
   Health(HealthOptions),
+  OpenGraph(OpenGraphRequest),
 }
 
 impl ConnectRequest {
@@ -56,6 +65,11 @@ impl ConnectRequest {
         let options: HealthOptions =
           serde_json::from_value(value).unwrap_or_default();
         Ok(ConnectRequest::Health(options))
+      }
+      "opengraph" => {
+        let req: OpenGraphRequest =
+          serde_json::from_value(value).map_err(|e| format!("invalid opengraph request: {e}"))?;
+        Ok(ConnectRequest::OpenGraph(req))
       }
       "views" => {
         let req: ViewsRequest =
@@ -116,6 +130,16 @@ impl ClientChannels {
 /// Outgoing WebSocket message sent back to the client.
 ///
 /// Discriminated by the `"scope"` JSON field.
+/// Response payload for an OpenGraph fetch.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "action", rename_all = "lowercase")]
+pub enum OpenGraphResponse {
+  /// Successful OpenGraph data extraction.
+  Data(OpenGraphData),
+  /// An error occurred while fetching OpenGraph data.
+  Error { message: String },
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "scope", rename_all = "lowercase")]
 pub enum ConnectResponse {
@@ -125,4 +149,6 @@ pub enum ConnectResponse {
   Views(ViewsResponse),
   /// A health-check diagnostics response.
   Health(HealthDiagnostics),
+  /// An OpenGraph metadata response.
+  OpenGraph(OpenGraphResponse),
 }
