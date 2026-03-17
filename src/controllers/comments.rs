@@ -9,9 +9,14 @@
 use crate::db::parse_oids;
 use crate::models::comments::{BlogComment, CommentEdit, PopulatedComment};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use mongodb::{Client, bson::doc, bson::oid::ObjectId, error::Error as DbError};
+
+/// Returns the timestamp string if it parses as valid RFC 3339, otherwise `None`.
+fn validate_rfc3339(s: &str) -> Option<String> {
+  DateTime::parse_from_rfc3339(s).ok().map(|dt| dt.to_rfc3339())
+}
 
 const COLL_NAME: &str = "comments";
 
@@ -75,9 +80,10 @@ pub async fn create_comment(
   reply_to: Option<&ObjectId>,
 ) -> Result<BlogComment, DbError> {
   let collection = get_collection(client);
-  let now = Utc::now().to_rfc3339();
+  let created_time = validate_rfc3339(&comment.created_time)
+    .unwrap_or_else(|| Utc::now().to_rfc3339());
   let comment = BlogComment {
-    created_time: now,
+    created_time,
     edited_time: None,
     likes: 0,
     reply_to: reply_to.map(|oid| oid.to_hex()),
@@ -116,12 +122,16 @@ pub async fn edit_comment(
 ) -> Result<Option<PopulatedComment>, DbError> {
   let collection = get_collection(client);
   let now = Utc::now().to_rfc3339();
-  let update = doc! {
-    "$set": {
-      "text": &edit.text,
-      "edited_time": &now,
-    }
-  };
+  let mut set_fields = doc! { "edited_time": &now };
+  if let Some(ref text) = edit.text {
+    set_fields.insert("text", text);
+  }
+  if let Some(ref ct) = edit.created_time
+    && let Some(valid) = validate_rfc3339(ct)
+  {
+    set_fields.insert("created_time", valid);
+  }
+  let update = doc! { "$set": set_fields };
   update_and_populate(&collection, id, update).await
 }
 

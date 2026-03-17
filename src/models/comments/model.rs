@@ -30,7 +30,8 @@ fn serialize_object_ids<S: Serializer>(
 ///
 /// On creation, the following fields are overwritten with
 /// server-side defaults regardless of client input:
-/// - `created_time` — set to the current time.
+/// - `created_time` — uses the client-provided value if it is a
+///   valid RFC 3339 timestamp; otherwise defaults to the current time.
 /// - `edited_time` — set to `None`.
 /// - `likes` — set to `0`.
 /// - `replies` — set to an empty `Vec`.

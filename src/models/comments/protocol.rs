@@ -6,8 +6,11 @@ use serde::{Deserialize, Serialize};
 /// Partial update payload for editing a comment.
 #[derive(Debug, Deserialize)]
 pub struct CommentEdit {
-  /// The new text content to replace the existing comment text.
-  pub text: String,
+  /// New text content. If omitted, the existing text is kept.
+  pub text: Option<String>,
+  /// Optional override for the comment's creation timestamp.
+  /// Must be a valid RFC 3339 / ISO 8601 string; ignored if invalid.
+  pub created_time: Option<String>,
 }
 
 /// Incoming WebSocket message from the client.
