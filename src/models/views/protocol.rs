@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 pub enum ViewsRequest {
   /// Fetch all view counts. Does not affect the active path.
   List,
+  /// Fetch the view count for a single route.
+  Get { path: String },
 }
 
 /// View-count response types sent over the unified WebSocket.

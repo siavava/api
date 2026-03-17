@@ -24,6 +24,12 @@ pub async fn handle_ws_request(
       let all = views::get_all_views(db_client).await.unwrap_or_default();
       ConnectResponse::Views(ViewsResponse::List { views: all })
     }
+    ViewsRequest::Get { path } => {
+      let page = views::get_views(db_client, &path, views::ViewsIncrement::INCREMENT)
+        .await
+        .unwrap_or_default();
+      ConnectResponse::Views(ViewsResponse::Update { views: page })
+    }
   };
   socket::send_json(session, &response).await
 }
