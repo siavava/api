@@ -21,5 +21,7 @@
 pub mod comments;
 /// Location tracking (last known + history).
 pub mod location;
+/// OpenGraph metadata fetching and parsing.
+pub mod opengraph;
 /// Page view counting and retrieval.
 pub mod views;

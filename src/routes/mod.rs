@@ -22,6 +22,8 @@ mod connect;
 pub mod comments;
 /// REST endpoint for location tracking.
 mod location;
+/// REST endpoint for OpenGraph metadata extraction.
+mod opengraph;
 /// REST + HTML endpoints for quotes.
 mod quotes;
 /// REST + SSE endpoints for page view counts.
@@ -36,4 +38,5 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   location::register(cfg);
   comments::register(cfg);
   connect::register(cfg);
+  opengraph::register(cfg);
 }

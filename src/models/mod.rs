@@ -22,6 +22,8 @@ pub mod connect;
 pub mod health;
 /// Data model for location tracking.
 pub mod location;
+/// Data model for OpenGraph metadata.
+pub mod opengraph;
 /// Data model for quotes.
 pub mod quotes;
 /// Data model for page view counts.
