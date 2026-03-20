@@ -55,7 +55,7 @@ async fn update_and_populate(
   let filter = doc! { "_id": id };
   collection.update_one(filter.clone(), update).await?;
   match collection.find_one(filter).await? {
-    Some(comment) => Ok(Some(populate_replies(collection.clone(), comment, None).await?)),
+    Some(comment) => Ok(Some(populate_replies(collection, comment, None).await?)),
     None => Ok(None),
   }
 }
@@ -262,7 +262,7 @@ pub async fn list_comments(
 
   let mut populated = Vec::with_capacity(top_level.len());
   for comment in top_level {
-    let p = populate_replies(collection.clone(), comment, actor).await?;
+    let p = populate_replies(&collection, comment, actor).await?;
     populated.push(p);
   }
 
@@ -286,11 +286,12 @@ pub async fn list_comments(
 ///
 /// A [`PopulatedComment`] with its full reply tree resolved.
 /// Uses `Box::pin` for async recursion.
-async fn populate_replies(
-  collection: mongodb::Collection<BlogComment>,
+fn populate_replies<'a>(
+  collection: &'a mongodb::Collection<BlogComment>,
   comment: BlogComment,
-  actor: Option<&str>,
-) -> Result<PopulatedComment, DbError> {
+  actor: Option<&'a str>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<PopulatedComment, DbError>> + Send + 'a>> {
+  Box::pin(async move {
   if comment.replies.is_empty() {
     return Ok(PopulatedComment::from_comment(comment, vec![]));
   }
@@ -313,7 +314,7 @@ async fn populate_replies(
 
   let futures: Vec<_> = visible_replies
     .into_iter()
-    .map(|reply| Box::pin(populate_replies(collection.clone(), reply, actor)))
+    .map(|reply| populate_replies(collection, reply, actor))
     .collect();
 
   let mut populated_replies = Vec::with_capacity(futures.len());
@@ -322,4 +323,5 @@ async fn populate_replies(
   }
 
   Ok(PopulatedComment::from_comment(comment, populated_replies))
+  })
 }
