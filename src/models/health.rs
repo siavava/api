@@ -6,7 +6,7 @@ use super::quotes::Quote;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::{LazyLock, atomic::Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::AppState;
 
@@ -41,12 +41,16 @@ impl HealthDiagnostics {
   /// Collects a diagnostics snapshot from the current app state.
   pub async fn collect(state: &AppState, options: &HealthOptions) -> Self {
     let uptime = START_TIME.elapsed();
-    let db_connected = state
-      .db_client
-      .database("admin")
-      .run_command(mongodb::bson::doc! { "ping": 1 })
-      .await
-      .is_ok();
+    let db_connected = tokio::time::timeout(
+      Duration::from_secs(5),
+      state
+        .db_client
+        .database("admin")
+        .run_command(mongodb::bson::doc! { "ping": 1 }),
+    )
+    .await
+    .map(|r| r.is_ok())
+    .unwrap_or(false);
 
     let quotes = if options.quotes {
       Some(super::quotes::get_all())
