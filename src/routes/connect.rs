@@ -10,11 +10,11 @@
 use crate::{
   AppState,
   controllers::{opengraph, views},
-  protocol::socket,
   models::comments::{CommentEvent, CommentResponse},
   models::connect::{ClientChannels, ConnectRequest, ConnectResponse, OpenGraphResponse},
   models::health::HealthDiagnostics,
   models::views::ViewsResponse,
+  protocol::socket,
   routes::comments::handlers::socket as comment_handlers,
   routes::views::handlers::socket as view_handlers,
 };
@@ -109,7 +109,12 @@ async fn ws_event_loop(
 
       event = receivers.views.recv() => {
         let Ok(event) = event else { continue };
-        if active_path.as_deref() != Some(event.views.route.as_str()) {
+        // ? ALWAYS NOTIFY OF VIEWS UPDATES
+        // ? TO CLIENTS LOOKING AT ARCHIVE
+        let path = active_path.as_deref();
+        let is_archive = path == Some("<b>:/archive");
+        let is_match = path == Some(event.views.route.as_str());
+        if !is_archive && !is_match {
           continue;
         }
         let response = ConnectResponse::Views(ViewsResponse::Update {

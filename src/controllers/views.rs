@@ -150,8 +150,15 @@ pub async fn delete_views(client: &Client, route: &str) -> Result<(), DbError> {
 /// `Ok(Vec<PageViews>)` ordered from most-viewed to least-viewed.
 pub async fn get_all_views(client: &Client) -> Result<Vec<PageViews>, DbError> {
   let collection = get_collection(client);
-  let mut views: Vec<PageViews> = collection.find(doc! {}).await?.try_collect().await?;
-  views.sort_by(|a, b| b.count.cmp(&a.count));
+  let options = mongodb::options::FindOptions::builder()
+    .sort(doc! { "count": -1 })
+    .build();
+  let views: Vec<PageViews> = collection
+    .find(doc! {})
+    .with_options(options)
+    .await?
+    .try_collect()
+    .await?;
   Ok(views)
 }
 
