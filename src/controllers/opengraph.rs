@@ -4,14 +4,26 @@
 
 use crate::models::opengraph::OpenGraphData;
 use scraper::{Html, Selector};
+use std::sync::LazyLock;
+use std::time::Duration;
 use url::Url;
+
+/// Shared HTTP client with a 10-second timeout.
+static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+  reqwest::Client::builder()
+    .timeout(Duration::from_secs(10))
+    .build()
+    .expect("failed to build HTTP client")
+});
 
 /// Fetches the given URL and parses OpenGraph metadata from the HTML.
 pub async fn fetch_opengraph(target_url: &str) -> Result<OpenGraphData, String> {
   let parsed = Url::parse(target_url).map_err(|e| format!("Invalid URL: {e}"))?;
   let hostname = parsed.host_str().map(String::from);
 
-  let response = reqwest::get(target_url)
+  let response = HTTP_CLIENT
+    .get(target_url)
+    .send()
     .await
     .map_err(|e| format!("Failed to fetch URL: {e}"))?;
 
