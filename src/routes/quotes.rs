@@ -103,11 +103,7 @@ async fn get_quotes() -> HttpResponse {
 #[get("/")]
 async fn quotidian() -> Html {
   // Html::new(include_str!("../static/quotes.html"))
-  let raw_data = include_str!("../static/quotes.json");
-  let json: serde_json::Value =
-    serde_json::from_str(raw_data).expect("JSON was not well-formatted");
-
-  let quotes_data = json["quotes"].as_array().expect("Quotes not found in JSON");
+  let quotes_data = quotes::get_all();
 
   if quotes_data.is_empty() {
     return Html::new("No quotes available");

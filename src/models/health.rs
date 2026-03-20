@@ -34,7 +34,7 @@ pub struct HealthDiagnostics {
   pub db_connected: bool,
   /// All quotes (only present when requested with `quotes: true`).
   #[serde(skip_serializing_if = "Option::is_none")]
-  pub quotes: Option<Vec<Quote>>,
+  pub quotes: Option<&'static [Quote]>,
 }
 
 impl HealthDiagnostics {
