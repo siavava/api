@@ -79,14 +79,25 @@ async fn ws_event_loop(
 
   let mut active_path: Option<String> = None;
 
+  // Channel for receiving results from spawned background tasks
+  // (e.g. OpenGraph fetches) without blocking the event loop.
+  let (deferred_tx, mut deferred_rx) = tokio::sync::mpsc::channel::<ConnectResponse>(4);
+
   loop {
     tokio::select! {
+      // Deliver results from background tasks.
+      Some(response) = deferred_rx.recv() => {
+        if !socket::send_json(&mut session, &response).await {
+          break;
+        }
+      }
+
       ws_msg = msg_stream.next() => {
         let Some(Ok(msg)) = ws_msg else { break };
         let prev_path = active_path.clone();
         if !handle_ws_frame(
           msg, &app_state, &mut session,
-          &senders.comments, &mut active_path,
+          &senders.comments, &mut active_path, &deferred_tx,
         ).await {
           break;
         }
@@ -148,6 +159,7 @@ async fn handle_ws_frame(
   session: &mut Session,
   comment_tx: &broadcast::Sender<CommentEvent>,
   active_path: &mut Option<String>,
+  deferred_tx: &tokio::sync::mpsc::Sender<ConnectResponse>,
 ) -> bool {
   let db_client = &app_state.db_client;
   match msg {
@@ -182,12 +194,18 @@ async fn handle_ws_frame(
           socket::send_json(session, &response).await
         }
         ConnectRequest::OpenGraph(req) => {
-          let og_response = match opengraph::fetch_opengraph(&req.url).await {
-            Ok(data) => OpenGraphResponse::Data(data),
-            Err(e) => OpenGraphResponse::Error { message: e },
-          };
-          let response = ConnectResponse::OpenGraph(og_response);
-          socket::send_json(session, &response).await
+          // Spawn the fetch so it doesn't block the event loop.
+          // The result is sent back via deferred_tx and delivered in the
+          // select! loop's deferred_rx branch.
+          let tx = deferred_tx.clone();
+          actix_web::rt::spawn(async move {
+            let og_response = match opengraph::fetch_opengraph(&req.url).await {
+              Ok(data) => OpenGraphResponse::Data(data),
+              Err(e) => OpenGraphResponse::Error { message: e },
+            };
+            let _ = tx.send(ConnectResponse::OpenGraph(og_response)).await;
+          });
+          true
         }
       }
     }
