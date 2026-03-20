@@ -57,11 +57,19 @@ pub enum ConnectRequest {
 }
 
 impl ConnectRequest {
-  /// Parses a JSON string into a `ConnectRequest`.
+  /// Parses a JSON string into a [`ConnectRequest`].
   ///
-  /// Routes by the `"scope"` field: `"views"` goes to
-  /// [`ViewsRequest`], anything else (including omitted) goes to
-  /// [`CommentRequest`].
+  /// Extracts the `"scope"` field from the JSON payload and routes
+  /// to the appropriate variant:
+  ///
+  /// | Scope        | Variant                        |
+  /// |--------------|--------------------------------|
+  /// | `"health"`   | [`Health`](Self::Health)       |
+  /// | `"opengraph"`| [`OpenGraph`](Self::OpenGraph) |
+  /// | `"views"`    | [`Views`](Self::Views)         |
+  /// | `"comments"` | [`Comments`](Self::Comments)   |
+  ///
+  /// When `"scope"` is omitted, defaults to `"comments"`.
   pub fn parse(text: &str) -> Result<Self, String> {
     let value: serde_json::Value =
       serde_json::from_str(text).map_err(|e| format!("invalid JSON: {e}"))?;
