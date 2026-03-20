@@ -10,10 +10,7 @@
 //!
 //! Also exports the [`location!`](crate::location) convenience macro.
 
-use std::pin::Pin;
-
 use crate::models::location::*;
-use futures::{FutureExt, future::LocalBoxFuture};
 use mongodb::{Client, bson::doc, error::Error as DbError};
 
 const COLL_NAME: &str = "location";
@@ -70,23 +67,16 @@ fn get_history_collection(client: &Client) -> mongodb::Collection<LocationData> 
 /// # Returns
 ///
 /// The **previous** last-known location (before the update).
-pub async fn get_last_and_update<'a>(
-  client: &'a Client,
-  city: &'a str,
-  state: &'a str,
+pub async fn get_last_and_update(
+  client: &Client,
+  city: &str,
+  state: &str,
 ) -> Result<LocationData, DbError> {
-  let runners = {
-    let fetchers: Vec<Pin<Box<dyn Fn() -> LocalBoxFuture<'a, _>>>> = vec![
-      Box::pin(|| update_location_history(client, city, state).boxed_local()),
-      Box::pin(|| update_last_location(client, city, state).boxed_local()),
-    ];
-
-    fetchers.into_iter().map(|f| f())
-  };
-
-  // run all and return the return-value of second future
-  let [_, last] = futures::future::join_all(runners).await.try_into().unwrap();
-  last
+  let (_, last) = tokio::try_join!(
+    update_location_history(client, city, state),
+    update_last_location(client, city, state),
+  )?;
+  Ok(last)
 }
 
 /// Upserts the location history entry for a city+state pair.
@@ -107,14 +97,14 @@ pub async fn get_last_and_update<'a>(
 ///
 /// `Ok(LocationData::default())` — the return value is not meaningful;
 /// the caller only cares about the side effect.
-async fn update_location_history<'a>(
-  client: &'a Client,
-  city: &'a str,
-  state: &'a str,
-) -> Result<LocationData, DbError> {
+async fn update_location_history(
+  client: &Client,
+  city: &str,
+  state: &str,
+) -> Result<(), DbError> {
   let history_collection = get_history_collection(client);
 
-  let _ = history_collection
+  history_collection
     .update_one(
       doc! { "city": city, "state": state },
       doc! {
@@ -123,10 +113,9 @@ async fn update_location_history<'a>(
       },
     )
     .upsert(true)
-    .await;
+    .await?;
 
-  // dummy return, we don't care about this value.
-  Ok(LocationData::default())
+  Ok(())
 }
 
 /// Overwrites the single "last known location" document with a new
