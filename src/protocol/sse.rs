@@ -262,25 +262,24 @@ where
   /// are dropped. If the client count changes and `notify_listener_count`
   /// is enabled, a `"count"` event is broadcast.
   async fn remove_stale_clients(&self) {
-    let clients = self.mutex.lock().clients.clone();
-    let prev_clients_count = clients.len();
+    // Take clients out of the mutex instead of cloning.
+    let clients = std::mem::take(&mut self.mutex.lock().clients);
+    let prev_count = clients.len();
 
-    let mut ok_clients = vec![];
+    let mut ok_clients = Vec::with_capacity(prev_count);
 
     for client in clients {
-      let status = client.sender.send(Event::Comment("ping".into())).await;
-
-      if status.is_ok() {
-        ok_clients.push(client.clone());
+      if client.sender.send(Event::Comment("ping".into())).await.is_ok() {
+        ok_clients.push(client);
       } else {
         info!("removing stale client for {:?}", client.filter);
       }
     }
 
-    let ok_clients_count = ok_clients.len();
+    let new_count = ok_clients.len();
     self.mutex.lock().clients = ok_clients;
 
-    if ok_clients_count != prev_clients_count {
+    if new_count != prev_count {
       self.maybe_notify_listener_count().await;
     }
 
@@ -293,16 +292,16 @@ where
   /// This is a no-op if `notify_listener_count` is `false`.
   pub async fn maybe_notify_listener_count(&self) {
     if self.notify_listener_count {
-      let clients = self.mutex.lock().clients.clone();
-      let count = clients.len(); //.to_string();
-      let send_futures = clients.iter().map(|client| {
-        let SenderData { sender, filter: _ } = client;
-        sender.send(
-          sse::Data::new(ActiveListeners { count })
-            .event("count")
-            .into(),
-        )
-      });
+      // Clone only the senders (Arc bump each), not the filters.
+      let (senders, count) = {
+        let lock = self.mutex.lock();
+        let senders: Vec<_> = lock.clients.iter().map(|c| c.sender.clone()).collect();
+        let count = senders.len();
+        (senders, count)
+      };
+      let send_futures = senders
+        .iter()
+        .map(|sender| sender.send(sse::Data::new(ActiveListeners { count }).event("count").into()));
 
       future::join_all(send_futures).await;
     }
@@ -350,17 +349,24 @@ where
   /// - Its filter equals `msg`, **or**
   /// - Its filter is `T::default()` (wildcard — receives all events).
   pub async fn broadcast(&self, msg: &T) {
-    let clients = self.mutex.lock().clients.clone();
+    let default = T::default();
+    // Clone only the senders that match, not every client.
+    let matching_senders: Vec<_> = {
+      let lock = self.mutex.lock();
+      lock
+        .clients
+        .iter()
+        .filter(|c| c.filter == *msg || c.filter == default)
+        .map(|c| {
+          info!("notifying client for filter: {:?}", c.filter);
+          c.sender.clone()
+        })
+        .collect()
+    };
 
-    let send_futures = clients.iter().filter_map(|client| {
-      let SenderData { sender, filter } = client;
-      if msg == filter || filter == &T::default() {
-        info!("notifying client for filter: {:?}", filter);
-        Some(sender.send(sse::Data::new(msg.clone()).event("update").into()))
-      } else {
-        None
-      }
-    });
+    let send_futures = matching_senders
+      .iter()
+      .map(|sender| sender.send(sse::Data::new(msg.clone()).event("update").into()));
 
     future::join_all(send_futures).await;
   }
