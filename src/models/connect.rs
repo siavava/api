@@ -26,14 +26,6 @@ pub enum Scope {
   Comments,
 }
 
-/// Thin wrapper for deserializing just the `"scope"` field from an
-/// incoming WebSocket message before routing to the full parser.
-#[derive(Debug, Deserialize)]
-struct Envelope {
-  #[serde(default)]
-  scope: Scope,
-}
-
 /// Incoming WebSocket message from the client.
 ///
 /// Currently only comment operations are supported as requests.
@@ -74,8 +66,13 @@ impl ConnectRequest {
     let value: serde_json::Value =
       serde_json::from_str(text).map_err(|e| format!("invalid JSON: {e}"))?;
 
-    let Envelope { scope } =
-      serde_json::from_value(value.clone()).map_err(|e| format!("invalid scope: {e}"))?;
+    // TODO: #2 revisit this
+    let scope: Scope = value
+      .get("scope")
+      .map(|v| serde_json::from_value(v.clone()))
+      .transpose()
+      .map_err(|e| format!("invalid scope: {e}"))?
+      .unwrap_or_default();
 
     match scope {
       Scope::Health => {
