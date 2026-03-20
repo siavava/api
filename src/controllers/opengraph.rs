@@ -16,6 +16,32 @@ static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
     .expect("failed to build HTTP client")
 });
 
+/// Pre-parsed CSS selectors for OpenGraph metadata extraction.
+struct Selectors {
+  og_title: Selector,
+  og_description: Selector,
+  og_image: Selector,
+  og_site_name: Selector,
+  og_url: Selector,
+  title: Selector,
+  meta_description: Selector,
+  favicon: Selector,
+}
+
+static SELECTORS: LazyLock<Selectors> = LazyLock::new(|| {
+  let s = |css: &str| Selector::parse(css).expect("invalid selector");
+  Selectors {
+    og_title: s("meta[property=\"og:title\"]"),
+    og_description: s("meta[property=\"og:description\"]"),
+    og_image: s("meta[property=\"og:image\"]"),
+    og_site_name: s("meta[property=\"og:site_name\"]"),
+    og_url: s("meta[property=\"og:url\"]"),
+    title: s("title"),
+    meta_description: s("meta[name=\"description\"]"),
+    favicon: s("link[rel=\"icon\"], link[rel=\"shortcut icon\"]"),
+  }
+});
+
 /// Fetches the given URL and parses OpenGraph metadata from the HTML.
 pub async fn fetch_opengraph(target_url: &str) -> Result<OpenGraphData, String> {
   let parsed = Url::parse(target_url).map_err(|e| format!("Invalid URL: {e}"))?;
@@ -36,21 +62,23 @@ pub async fn fetch_opengraph(target_url: &str) -> Result<OpenGraphData, String> 
 
   let document = Html::parse_document(&html_text);
 
-  let og_title = meta_property(&document, "og:title");
-  let og_description = meta_property(&document, "og:description");
-  let og_image = meta_property(&document, "og:image");
-  let og_site_name = meta_property(&document, "og:site_name");
-  let og_url = meta_property(&document, "og:url");
+  let s = &*SELECTORS;
+
+  let og_title = meta_content(&document, &s.og_title);
+  let og_description = meta_content(&document, &s.og_description);
+  let og_image = meta_content(&document, &s.og_image);
+  let og_site_name = meta_content(&document, &s.og_site_name);
+  let og_url = meta_content(&document, &s.og_url);
 
   // Fallbacks for title and description
   let title = og_title.or_else(|| {
-    Selector::parse("title")
-      .ok()
-      .and_then(|sel| document.select(&sel).next())
+    document
+      .select(&s.title)
+      .next()
       .map(|el| el.text().collect::<String>())
   });
 
-  let description = og_description.or_else(|| meta_name(&document, "description"));
+  let description = og_description.or_else(|| meta_content(&document, &s.meta_description));
 
   // Resolve favicon
   let favicon = resolve_favicon(&document, &parsed);
@@ -66,23 +94,10 @@ pub async fn fetch_opengraph(target_url: &str) -> Result<OpenGraphData, String> 
   })
 }
 
-/// Extracts a `<meta property="..." content="...">` value.
-fn meta_property(document: &Html, property: &str) -> Option<String> {
-  let selector =
-    Selector::parse(&format!("meta[property=\"{property}\"]")).ok()?;
+/// Extracts the `content` attribute from the first element matching a selector.
+fn meta_content(document: &Html, selector: &Selector) -> Option<String> {
   document
-    .select(&selector)
-    .next()
-    .and_then(|el| el.value().attr("content"))
-    .map(String::from)
-}
-
-/// Extracts a `<meta name="..." content="...">` value.
-fn meta_name(document: &Html, name: &str) -> Option<String> {
-  let selector =
-    Selector::parse(&format!("meta[name=\"{name}\"]")).ok()?;
-  document
-    .select(&selector)
+    .select(selector)
     .next()
     .and_then(|el| el.value().attr("content"))
     .map(String::from)
@@ -90,15 +105,11 @@ fn meta_name(document: &Html, name: &str) -> Option<String> {
 
 /// Resolves the favicon URL from `<link rel="icon">` tags, falling back to `/favicon.ico`.
 fn resolve_favicon(document: &Html, base_url: &Url) -> Option<String> {
-  let icon = Selector::parse("link[rel=\"icon\"], link[rel=\"shortcut icon\"]")
-    .ok()
-    .and_then(|sel| {
-      document
-        .select(&sel)
-        .next()
-        .and_then(|el| el.value().attr("href"))
-        .map(String::from)
-    });
+  let icon = document
+    .select(&SELECTORS.favicon)
+    .next()
+    .and_then(|el| el.value().attr("href"))
+    .map(String::from);
 
   match icon {
     Some(href) if href.starts_with("http") => Some(href),
