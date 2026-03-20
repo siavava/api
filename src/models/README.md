@@ -3,7 +3,8 @@
 Data models (structs and enums) shared across the API.
 These types are used by both
 [controllers](../controllers/) (for DB operations) and
-[routes](../routes/) (for request/responseserialization).
+[routes](../routes/)
+(for request/responseserialization).
 
 ## Modules
 
