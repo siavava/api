@@ -15,6 +15,25 @@ use crate::AppState;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
+/// The `"scope"` field in incoming WebSocket messages.
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Scope {
+  Health,
+  OpenGraph,
+  Views,
+  #[default]
+  Comments,
+}
+
+/// Thin wrapper for deserializing just the `"scope"` field from an
+/// incoming WebSocket message before routing to the full parser.
+#[derive(Debug, Deserialize)]
+struct Envelope {
+  #[serde(default)]
+  scope: Scope,
+}
+
 /// Incoming WebSocket message from the client.
 ///
 /// Currently only comment operations are supported as requests.
@@ -55,28 +74,25 @@ impl ConnectRequest {
     let value: serde_json::Value =
       serde_json::from_str(text).map_err(|e| format!("invalid JSON: {e}"))?;
 
-    let scope = value
-      .get("scope")
-      .and_then(|v| v.as_str())
-      .unwrap_or("comments");
+    let Envelope { scope } =
+      serde_json::from_value(value.clone()).map_err(|e| format!("invalid scope: {e}"))?;
 
     match scope {
-      "health" => {
-        let options: HealthOptions =
-          serde_json::from_value(value).unwrap_or_default();
+      Scope::Health => {
+        let options: HealthOptions = serde_json::from_value(value).unwrap_or_default();
         Ok(ConnectRequest::Health(options))
       }
-      "opengraph" => {
+      Scope::OpenGraph => {
         let req: OpenGraphRequest =
           serde_json::from_value(value).map_err(|e| format!("invalid opengraph request: {e}"))?;
         Ok(ConnectRequest::OpenGraph(req))
       }
-      "views" => {
+      Scope::Views => {
         let req: ViewsRequest =
           serde_json::from_value(value).map_err(|e| format!("invalid views request: {e}"))?;
         Ok(ConnectRequest::Views(req))
       }
-      _ => {
+      Scope::Comments => {
         let req: CommentRequest =
           serde_json::from_value(value).map_err(|e| format!("invalid message: {e}"))?;
         Ok(ConnectRequest::Comments(Box::new(req)))
@@ -113,6 +129,8 @@ impl ClientChannels {
   /// Each receiver is subscribed from the corresponding sender on
   /// [`AppState`], so the client will receive all future broadcasts.
   pub fn from_app_state(state: &AppState) -> Self {
+    // Cloning a `broadcast::Sender` is cheap
+    // (Arc increment, no data copy).
     let senders = EventSenders {
       comments: state.comment_events.clone(),
       views: state.view_events.clone(),
