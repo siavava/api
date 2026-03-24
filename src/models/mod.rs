@@ -24,6 +24,8 @@ pub mod health;
 pub mod location;
 /// Data model for OpenGraph metadata.
 pub mod opengraph;
+/// Data models for Spotify playback.
+pub mod playback;
 /// Data model for quotes.
 pub mod quotes;
 /// Data model for page view counts.

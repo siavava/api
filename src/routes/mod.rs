@@ -24,6 +24,8 @@ pub mod comments;
 mod location;
 /// REST endpoint for OpenGraph metadata extraction.
 mod opengraph;
+/// Handlers for Spotify playback data (used by [`connect`]).
+pub mod playback;
 /// REST + HTML endpoints for quotes.
 mod quotes;
 /// REST + SSE endpoints for page view counts.

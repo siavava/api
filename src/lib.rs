@@ -22,6 +22,7 @@
 //! It is cloned into every Actix-Web worker via `web::Data`.
 //! Use the [`app_state!`] macro for convenient construction.
 
+use controllers::playback::SpotifyClient;
 use controllers::views;
 use models::comments::CommentEvent;
 use models::views::{PageViews, ViewEvent};
@@ -55,6 +56,9 @@ pub struct AppState {
   /// Broadcast channel for active-client-count changes.
   /// Sent to ALL clients regardless of active path.
   pub active_count_events: broadcast::Sender<usize>,
+  /// Spotify API client for playback data.
+  /// `None` if Spotify credentials are not configured.
+  pub spotify: Option<Arc<SpotifyClient>>,
 }
 
 impl AppState {
@@ -66,6 +70,8 @@ impl AppState {
     let (view_events, _) = broadcast::channel::<ViewEvent>(256);
     let (active_count_events, _) = broadcast::channel::<usize>(256);
 
+    let spotify = SpotifyClient::from_env().map(Arc::new);
+
     Self {
       db_client,
       view_events_handler,
@@ -73,6 +79,7 @@ impl AppState {
       view_events,
       active_clients: Arc::new(AtomicUsize::new(0)),
       active_count_events,
+      spotify,
     }
   }
 }

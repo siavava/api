@@ -23,5 +23,7 @@ pub mod comments;
 pub mod location;
 /// OpenGraph metadata fetching and parsing.
 pub mod opengraph;
+/// Spotify playback data.
+pub mod playback;
 /// Page view counting and retrieval.
 pub mod views;

@@ -13,9 +13,11 @@ use crate::{
   models::comments::{CommentEvent, CommentResponse},
   models::connect::{ClientChannels, ConnectRequest, ConnectResponse, OpenGraphResponse},
   models::health::HealthDiagnostics,
+  models::playback::PlaybackResponse,
   models::views::ViewsResponse,
   protocol::socket,
   routes::comments::handlers::socket as comment_handlers,
+  routes::playback::handlers::socket as playback_handlers,
   routes::views::handlers::socket as view_handlers,
 };
 
@@ -192,6 +194,20 @@ async fn handle_ws_frame(
           let diagnostics = HealthDiagnostics::collect(app_state, &options).await;
           let response = ConnectResponse::Health(diagnostics);
           socket::send_json(session, &response).await
+        }
+        ConnectRequest::Playback(req) => {
+          let spotify = app_state.spotify.clone();
+          let tx = deferred_tx.clone();
+          actix_web::rt::spawn(async move {
+            let response = match spotify {
+              Some(ref client) => playback_handlers::handle_request(client, req).await,
+              None => PlaybackResponse::Error {
+                message: "spotify not configured".into(),
+              },
+            };
+            let _ = tx.send(ConnectResponse::Playback(response)).await;
+          });
+          true
         }
         ConnectRequest::OpenGraph(req) => {
           // Spawn the fetch so it doesn't block the event loop.
