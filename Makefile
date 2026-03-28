@@ -13,6 +13,9 @@ dev:
 clean:
 	@cargo clean
 
+fmt:
+	@cargo +nightly fmt
+
 TESTS = ""
 test:
 	@cargo test $(TESTS) --offline --lib -- --color=always --nocapture

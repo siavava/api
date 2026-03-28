@@ -4,8 +4,7 @@
 
 use crate::models::opengraph::OpenGraphData;
 use scraper::{Html, Selector};
-use std::sync::LazyLock;
-use std::time::Duration;
+use std::{sync::LazyLock, time::Duration};
 use url::Url;
 
 /// Shared HTTP client with a 10-second timeout.

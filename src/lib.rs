@@ -22,10 +22,13 @@
 //! It is cloned into every Actix-Web worker via `web::Data`.
 //! Use the [`app_state!`] macro for convenient construction.
 
-use controllers::playback::SpotifyClient;
-use controllers::views;
-use models::comments::CommentEvent;
-use models::views::{PageViews, ViewEvent};
+use crate::{
+  controllers::{playback::SpotifyClient, views},
+  models::{
+    comments::CommentEvent,
+    views::{PageViews, ViewEvent},
+  },
+};
 use mongodb::Client;
 use protocol::sse;
 use std::sync::{Arc, atomic::AtomicUsize};

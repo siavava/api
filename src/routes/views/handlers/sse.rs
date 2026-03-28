@@ -1,7 +1,7 @@
 //! SSE handlers for real-time view-count updates.
 
-use crate::{AppState, models::views::PageViews};
 use super::rest::PageViewRequestData;
+use crate::{AppState, models::views::PageViews};
 
 use actix_web::{
   Responder, get,

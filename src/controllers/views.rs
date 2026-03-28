@@ -164,11 +164,7 @@ pub async fn get_all_views(client: &Client) -> Result<Vec<PageViews>, DbError> {
 /// Increments the view count for a path and broadcasts the update.
 ///
 /// Called when a client's active path changes. No-ops if `path` is `None`.
-pub async fn track_page_view(
-  client: &Client,
-  senders: &EventSenders,
-  path: Option<&str>,
-) {
+pub async fn track_page_view(client: &Client, senders: &EventSenders, path: Option<&str>) {
   if let Some(path) = path
     && let Ok(updated) = get_views(client, path, ViewsIncrement::INCREMENT).await
   {

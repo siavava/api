@@ -12,7 +12,7 @@ use crate::controllers::opengraph;
 
 use actix_web::{
   HttpResponse, get,
-  web::{scope, Query},
+  web::{Query, scope},
 };
 use serde::Deserialize;
 
@@ -30,9 +30,7 @@ struct OpenGraphRequest {
 
 /// `GET /opengraph/?url=...` — fetches and returns OpenGraph metadata for the given URL.
 #[get("/")]
-async fn get_opengraph(
-  query: Query<OpenGraphRequest>,
-) -> HttpResponse {
+async fn get_opengraph(query: Query<OpenGraphRequest>) -> HttpResponse {
   let target_url = &query.url;
 
   match opengraph::fetch_opengraph(target_url).await {

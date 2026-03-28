@@ -97,11 +97,7 @@ pub async fn get_last_and_update(
 ///
 /// `Ok(LocationData::default())` — the return value is not meaningful;
 /// the caller only cares about the side effect.
-async fn update_location_history(
-  client: &Client,
-  city: &str,
-  state: &str,
-) -> Result<(), DbError> {
+async fn update_location_history(client: &Client, city: &str, state: &str) -> Result<(), DbError> {
   let history_collection = get_history_collection(client);
 
   history_collection

@@ -5,8 +5,10 @@
 use super::quotes::Quote;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::{LazyLock, atomic::Ordering};
-use std::time::{Duration, Instant};
+use std::{
+  sync::{LazyLock, atomic::Ordering},
+  time::{Duration, Instant},
+};
 
 use crate::AppState;
 

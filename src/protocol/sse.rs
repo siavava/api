@@ -269,7 +269,12 @@ where
     let mut ok_clients = Vec::with_capacity(prev_count);
 
     for client in clients {
-      if client.sender.send(Event::Comment("ping".into())).await.is_ok() {
+      if client
+        .sender
+        .send(Event::Comment("ping".into()))
+        .await
+        .is_ok()
+      {
         ok_clients.push(client);
       } else {
         info!("removing stale client for {:?}", client.filter);
@@ -299,9 +304,13 @@ where
         let count = senders.len();
         (senders, count)
       };
-      let send_futures = senders
-        .iter()
-        .map(|sender| sender.send(sse::Data::new(ActiveListeners { count }).event("count").into()));
+      let send_futures = senders.iter().map(|sender| {
+        sender.send(
+          sse::Data::new(ActiveListeners { count })
+            .event("count")
+            .into(),
+        )
+      });
 
       future::join_all(send_futures).await;
     }

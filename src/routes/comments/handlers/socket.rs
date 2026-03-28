@@ -15,7 +15,12 @@ pub type Handled = (CommentResponse, Option<String>);
 
 /// Helper to build an error [`Handled`] tuple (never broadcast).
 fn err(message: impl Into<String>) -> Handled {
-  (CommentResponse::Error { message: message.into() }, None)
+  (
+    CommentResponse::Error {
+      message: message.into(),
+    },
+    None,
+  )
 }
 
 /// Parses a raw WebSocket text frame and dispatches it to the
@@ -40,14 +45,10 @@ pub async fn handle_request(
   active_route: &mut Option<String>,
 ) -> Handled {
   match request {
-    CommentRequest::Create { comment, reply_to } =>
-      handle_create(db, comment, reply_to).await,
-    CommentRequest::Edit { id, edit } =>
-      handle_edit(db, id, edit).await,
-    CommentRequest::Like { id } =>
-      handle_like(db, id).await,
-    CommentRequest::Delete { id } =>
-      handle_delete(db, id).await,
+    CommentRequest::Create { comment, reply_to } => handle_create(db, comment, reply_to).await,
+    CommentRequest::Edit { id, edit } => handle_edit(db, id, edit).await,
+    CommentRequest::Like { id } => handle_like(db, id).await,
+    CommentRequest::Delete { id } => handle_delete(db, id).await,
     CommentRequest::List { path, actor } => {
       *active_route = Some(path.clone());
       handle_list(db, path, actor).await
@@ -71,20 +72,13 @@ async fn handle_create(
   };
 
   match comments::create_comment(db, comment, parent_oid.as_ref()).await {
-    Ok(created) => (
-      CommentResponse::Created { comment: created },
-      Some(path),
-    ),
+    Ok(created) => (CommentResponse::Created { comment: created }, Some(path)),
     Err(e) => err(format!("failed to create comment: {e}")),
   }
 }
 
 /// Edits an existing comment's text.
-async fn handle_edit(
-  db: &mongodb::Client,
-  id: String,
-  edit: CommentEdit,
-) -> Handled {
+async fn handle_edit(db: &mongodb::Client, id: String, edit: CommentEdit) -> Handled {
   let oid = match parse_oid(&id) {
     Ok(oid) => oid,
     Err(e) => return err(e),
@@ -101,10 +95,7 @@ async fn handle_edit(
 }
 
 /// Increments a comment's like count.
-async fn handle_like(
-  db: &mongodb::Client,
-  id: String,
-) -> Handled {
+async fn handle_like(db: &mongodb::Client, id: String) -> Handled {
   let oid = match parse_oid(&id) {
     Ok(oid) => oid,
     Err(e) => return err(e),
@@ -121,10 +112,7 @@ async fn handle_like(
 }
 
 /// Deletes a comment and all its nested replies.
-async fn handle_delete(
-  db: &mongodb::Client,
-  id: String,
-) -> Handled {
+async fn handle_delete(db: &mongodb::Client, id: String) -> Handled {
   let oid = match parse_oid(&id) {
     Ok(oid) => oid,
     Err(e) => return err(e),
@@ -132,7 +120,10 @@ async fn handle_delete(
 
   match comments::delete_comment(db, &oid).await {
     Ok((count, Some(path))) if count > 0 => (
-      CommentResponse::Deleted { id, deleted_count: count },
+      CommentResponse::Deleted {
+        id,
+        deleted_count: count,
+      },
       Some(path),
     ),
     Ok(_) => err("comment not found"),
@@ -141,11 +132,7 @@ async fn handle_delete(
 }
 
 /// Lists all top-level comments for a page path.
-async fn handle_list(
-  db: &mongodb::Client,
-  path: String,
-  actor: Option<String>,
-) -> Handled {
+async fn handle_list(db: &mongodb::Client, path: String, actor: Option<String>) -> Handled {
   match comments::list_comments(db, &path, actor.as_deref()).await {
     Ok(list) => (CommentResponse::List { comments: list }, None),
     Err(e) => err(format!("failed to list comments: {e}")),

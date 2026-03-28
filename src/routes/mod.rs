@@ -16,10 +16,10 @@
 //! | [`quotes`]   | `/` + `/quotes/` | REST + HTML   | Quote display and retrieval.                 |
 //! | [`views`]    | `/views/`        | REST + SSE    | Page view counts and live updates.           |
 
-/// Unified WebSocket endpoint for comments and view-count watch.
-mod connect;
 /// WebSocket endpoint for real-time comment operations.
 pub mod comments;
+/// Unified WebSocket endpoint for comments and view-count watch.
+mod connect;
 /// REST endpoint for location tracking.
 mod location;
 /// REST endpoint for OpenGraph metadata extraction.

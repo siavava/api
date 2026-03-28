@@ -16,11 +16,7 @@
 
 pub mod handlers;
 
-use crate::{
-  AppState,
-  models::comments::CommentEvent,
-  protocol::socket,
-};
+use crate::{AppState, models::comments::CommentEvent, protocol::socket};
 use handlers::socket::handle_message;
 
 use actix_web::{
@@ -172,8 +168,7 @@ async fn comments_ws(
   stream: actix_web::web::Payload,
   app_state: Data<AppState>,
 ) -> Result<HttpResponse, ActixError> {
-  let (response, session, msg_stream) =
-    actix_ws::handle(&req, stream)?;
+  let (response, session, msg_stream) = actix_ws::handle(&req, stream)?;
   let db_client = app_state.db_client.clone();
   let broadcast_tx = app_state.comment_events.clone();
   let broadcast_rx = broadcast_tx.subscribe();
@@ -230,10 +225,7 @@ async fn ws_event_loop(
 
 /// Returns `true` if the event path matches the client's active
 /// route.
-fn matches_active_route(
-  active_route: &Option<String>,
-  event_path: &str,
-) -> bool {
+fn matches_active_route(active_route: &Option<String>, event_path: &str) -> bool {
   active_route.as_deref() == Some(event_path)
 }
 
@@ -249,14 +241,10 @@ async fn handle_ws_frame(
 ) -> bool {
   match msg {
     Message::Text(text) => {
-      let (response, event_path) =
-        handle_message(db_client, &text, active_route).await;
+      let (response, event_path) = handle_message(db_client, &text, active_route).await;
 
       if let Some(path) = event_path {
-        let _ = broadcast_tx.send(CommentEvent {
-          path,
-          response,
-        });
+        let _ = broadcast_tx.send(CommentEvent { path, response });
       } else {
         return socket::send_json(session, &response).await;
       }

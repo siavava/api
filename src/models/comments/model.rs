@@ -4,10 +4,7 @@ use mongodb::bson::oid::ObjectId;
 use serde::{Deserialize, Serialize, Serializer};
 
 /// Serializes an `Option<ObjectId>` as a hex string (or `null`).
-fn serialize_object_id<S: Serializer>(
-  id: &Option<ObjectId>,
-  s: S,
-) -> Result<S::Ok, S::Error> {
+fn serialize_object_id<S: Serializer>(id: &Option<ObjectId>, s: S) -> Result<S::Ok, S::Error> {
   match id {
     Some(oid) => s.serialize_str(&oid.to_hex()),
     None => s.serialize_none(),
@@ -16,10 +13,7 @@ fn serialize_object_id<S: Serializer>(
 
 /// Serializes a `Vec<String>` of ObjectId hex strings as a JSON
 /// array.
-fn serialize_object_ids<S: Serializer>(
-  ids: &[String],
-  s: S,
-) -> Result<S::Ok, S::Error> {
+fn serialize_object_ids<S: Serializer>(ids: &[String], s: S) -> Result<S::Ok, S::Error> {
   s.collect_seq(ids.iter())
 }
 
@@ -121,10 +115,7 @@ impl PopulatedComment {
   /// Converts a [`BlogComment`] into a `PopulatedComment`,
   /// attaching the already-resolved `populated_replies` as nested
   /// children.
-  pub fn from_comment(
-    comment: BlogComment,
-    populated_replies: Vec<PopulatedComment>,
-  ) -> Self {
+  pub fn from_comment(comment: BlogComment, populated_replies: Vec<PopulatedComment>) -> Self {
     Self {
       id: comment.id,
       text: comment.text,

@@ -10,7 +10,7 @@
 
 /// REST handlers (GET, POST, DELETE).
 pub mod rest;
-/// SSE handlers (watch stream + test page).
-pub mod sse;
 /// WebSocket handler for the unified `/api/connect/` endpoint.
 pub mod socket;
+/// SSE handlers (watch stream + test page).
+pub mod sse;

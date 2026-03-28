@@ -7,11 +7,13 @@
 //! There is no separate "views" request scope — view updates are
 //! pushed automatically for the active path.
 
-use super::comments::{CommentEvent, CommentRequest, CommentResponse};
-use super::health::{HealthDiagnostics, HealthOptions};
-use super::opengraph::OpenGraphData;
-use super::playback::{PlaybackRequest, PlaybackResponse};
-use super::views::{ViewEvent, ViewsRequest, ViewsResponse};
+use super::{
+  comments::{CommentEvent, CommentRequest, CommentResponse},
+  health::{HealthDiagnostics, HealthOptions},
+  opengraph::OpenGraphData,
+  playback::{PlaybackRequest, PlaybackResponse},
+  views::{ViewEvent, ViewsRequest, ViewsResponse},
+};
 use crate::AppState;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
