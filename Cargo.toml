@@ -3,7 +3,6 @@
 [package]
 name = "server"
 version = "0.1.0"
-
 edition = "2024"
 
 [dependencies]
@@ -27,6 +26,7 @@ rand = "0.10.0"
 actix-ws = "0.4.0"
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.13", features = [
+  "rustls",
   "json",
   "form",
   "query",

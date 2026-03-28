@@ -45,7 +45,7 @@ style-check:
 
 lint:
 	@rustup component add clippy 2> /dev/null
-	cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --all-targets --all-features -- --no-deps -D warnings
 
 audit:
 	cargo audit
