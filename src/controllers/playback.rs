@@ -139,8 +139,7 @@ impl SpotifyClient {
       .map_err(|e| format!("failed to parse token response: {e}"))?;
 
     let access_token = token_resp.access_token.clone();
-    let expires_at =
-      Instant::now() + Duration::from_secs(token_resp.expires_in.saturating_sub(60));
+    let expires_at = Instant::now() + Duration::from_secs(token_resp.expires_in.saturating_sub(60));
 
     *self.token.lock() = Some(CachedToken {
       access_token: token_resp.access_token,
@@ -186,7 +185,13 @@ impl SpotifyClient {
           }
           None => None,
         };
-        Ok(Some(to_track(&item, body.is_playing, body.progress_ms, None, preview.as_deref())))
+        Ok(Some(to_track(
+          &item,
+          body.is_playing,
+          body.progress_ms,
+          None,
+          preview.as_deref(),
+        )))
       }
       None => Ok(None),
     }
@@ -230,7 +235,12 @@ impl SpotifyClient {
       .filter(|item| {
         seen.insert((
           &item.track.name,
-          item.track.artists.iter().map(|a| &a.name).collect::<Vec<_>>(),
+          item
+            .track
+            .artists
+            .iter()
+            .map(|a| &a.name)
+            .collect::<Vec<_>>(),
         ))
       })
       .take(limit)
@@ -246,7 +256,11 @@ impl SpotifyClient {
     let tracks: Vec<Track> = deduped
       .iter()
       .map(|item| {
-        let preview = item.track.id.as_deref().and_then(|id| previews.get(id).map(|s| s.as_str()));
+        let preview = item
+          .track
+          .id
+          .as_deref()
+          .and_then(|id| previews.get(id).map(|s| s.as_str()));
         to_track(&item.track, false, None, Some(&item.played_at), preview)
       })
       .collect();

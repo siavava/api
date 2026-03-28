@@ -6,8 +6,7 @@
 //! MongoDB collection, as well as the [`views!`](crate::views) and
 //! [`all_views!`](crate::all_views) convenience macros.
 
-use crate::models::connect::EventSenders;
-use crate::models::views::*;
+use crate::models::{connect::EventSenders, views::*};
 
 use futures::TryStreamExt;
 use mongodb::{Client, bson::doc, error::Error as DbError};

@@ -16,7 +16,11 @@
 
 pub mod handlers;
 
-use crate::{AppState, protocol::socket, models::comments::CommentEvent};
+use crate::{
+  AppState,
+  models::comments::CommentEvent,
+  protocol::socket,
+};
 use handlers::socket::handle_message;
 
 use actix_web::{

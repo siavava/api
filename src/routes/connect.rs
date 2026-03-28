@@ -10,15 +10,18 @@
 use crate::{
   AppState,
   controllers::{opengraph, views},
-  models::comments::{CommentEvent, CommentResponse},
-  models::connect::{ClientChannels, ConnectRequest, ConnectResponse, OpenGraphResponse},
-  models::health::HealthDiagnostics,
-  models::playback::PlaybackResponse,
-  models::views::ViewsResponse,
+  models::{
+    comments::{CommentEvent, CommentResponse},
+    connect::{ClientChannels, ConnectRequest, ConnectResponse, OpenGraphResponse},
+    health::HealthDiagnostics,
+    playback::PlaybackResponse,
+    views::ViewsResponse,
+  },
   protocol::socket,
-  routes::comments::handlers::socket as comment_handlers,
-  routes::playback::handlers::socket as playback_handlers,
-  routes::views::handlers::socket as view_handlers,
+  routes::{
+    comments::handlers::socket as comment_handlers,
+    playback::handlers::socket as playback_handlers, views::handlers::socket as view_handlers,
+  },
 };
 
 use actix_web::{Error as ActixError, HttpRequest, HttpResponse, get, web::Data};

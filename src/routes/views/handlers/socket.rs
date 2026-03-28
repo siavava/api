@@ -3,9 +3,11 @@
 
 use crate::{
   controllers::views,
+  models::{
+    connect::ConnectResponse,
+    views::{ViewsRequest, ViewsResponse},
+  },
   protocol::socket,
-  models::connect::ConnectResponse,
-  models::views::{ViewsRequest, ViewsResponse},
 };
 
 use actix_ws::Session;

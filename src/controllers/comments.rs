@@ -6,16 +6,24 @@
 //! All functions operate against the `comments` MongoDB collection and return
 //! domain types from [`crate::models::comments`].
 
-use crate::db::parse_oids;
-use crate::models::comments::{BlogComment, CommentEdit, PopulatedComment};
+use crate::{
+  db::parse_oids,
+  models::comments::{BlogComment, CommentEdit, PopulatedComment},
+};
 
 use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
-use mongodb::{Client, bson::doc, bson::oid::ObjectId, error::Error as DbError};
+use mongodb::{
+  Client,
+  bson::{doc, oid::ObjectId},
+  error::Error as DbError,
+};
 
 /// Returns the timestamp string if it parses as valid RFC 3339, otherwise `None`.
 fn validate_rfc3339(s: &str) -> Option<String> {
-  DateTime::parse_from_rfc3339(s).ok().map(|dt| dt.to_rfc3339())
+  DateTime::parse_from_rfc3339(s)
+    .ok()
+    .map(|dt| dt.to_rfc3339())
 }
 
 const COLL_NAME: &str = "comments";
@@ -80,8 +88,8 @@ pub async fn create_comment(
   reply_to: Option<&ObjectId>,
 ) -> Result<BlogComment, DbError> {
   let collection = get_collection(client);
-  let created_time = validate_rfc3339(&comment.created_time)
-    .unwrap_or_else(|| Utc::now().to_rfc3339());
+  let created_time =
+    validate_rfc3339(&comment.created_time).unwrap_or_else(|| Utc::now().to_rfc3339());
   let comment = BlogComment {
     created_time,
     edited_time: None,
@@ -177,7 +185,10 @@ pub async fn like_comment(
 /// The total number of documents deleted (the comment itself plus all
 /// nested replies).
 /// Returns `0` if no comment with that `id` exists.
-pub async fn delete_comment(client: &Client, id: &ObjectId) -> Result<(u64, Option<String>), DbError> {
+pub async fn delete_comment(
+  client: &Client,
+  id: &ObjectId,
+) -> Result<(u64, Option<String>), DbError> {
   let collection = get_collection(client);
 
   // Find the comment first so we can access its replies and parent
@@ -290,38 +301,40 @@ fn populate_replies<'a>(
   collection: &'a mongodb::Collection<BlogComment>,
   comment: BlogComment,
   actor: Option<&'a str>,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<PopulatedComment, DbError>> + Send + 'a>> {
+) -> std::pin::Pin<
+  Box<dyn std::future::Future<Output = Result<PopulatedComment, DbError>> + Send + 'a>,
+> {
   Box::pin(async move {
-  if comment.replies.is_empty() {
-    return Ok(PopulatedComment::from_comment(comment, vec![]));
-  }
+    if comment.replies.is_empty() {
+      return Ok(PopulatedComment::from_comment(comment, vec![]));
+    }
 
-  let reply_oids = parse_oids(&comment.replies);
-  let filter = doc! { "_id": { "$in": &reply_oids } };
-  let reply_comments: Vec<BlogComment> = collection.find(filter).await?.try_collect().await?;
+    let reply_oids = parse_oids(&comment.replies);
+    let filter = doc! { "_id": { "$in": &reply_oids } };
+    let reply_comments: Vec<BlogComment> = collection.find(filter).await?.try_collect().await?;
 
-  // Filter out private replies by other authors
-  let visible_replies: Vec<BlogComment> = reply_comments
-    .into_iter()
-    .filter(|reply| {
-      if reply.is_private == Some(true) {
-        actor.is_some_and(|a| a == reply.author)
-      } else {
-        true
-      }
-    })
-    .collect();
+    // Filter out private replies by other authors
+    let visible_replies: Vec<BlogComment> = reply_comments
+      .into_iter()
+      .filter(|reply| {
+        if reply.is_private == Some(true) {
+          actor.is_some_and(|a| a == reply.author)
+        } else {
+          true
+        }
+      })
+      .collect();
 
-  let futures: Vec<_> = visible_replies
-    .into_iter()
-    .map(|reply| populate_replies(collection, reply, actor))
-    .collect();
+    let futures: Vec<_> = visible_replies
+      .into_iter()
+      .map(|reply| populate_replies(collection, reply, actor))
+      .collect();
 
-  let mut populated_replies = Vec::with_capacity(futures.len());
-  for result in futures::future::join_all(futures).await {
-    populated_replies.push(result?);
-  }
+    let mut populated_replies = Vec::with_capacity(futures.len());
+    for result in futures::future::join_all(futures).await {
+      populated_replies.push(result?);
+    }
 
-  Ok(PopulatedComment::from_comment(comment, populated_replies))
+    Ok(PopulatedComment::from_comment(comment, populated_replies))
   })
 }
