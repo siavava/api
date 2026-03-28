@@ -23,3 +23,6 @@ pub struct OpenGraphData {
   /// The hostname extracted from the URL.
   pub hostname: Option<String>,
 }
+
+#[cfg(test)]
+mod tests;

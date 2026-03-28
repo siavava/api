@@ -139,7 +139,8 @@ impl SpotifyClient {
       .map_err(|e| format!("failed to parse token response: {e}"))?;
 
     let access_token = token_resp.access_token.clone();
-    let expires_at = Instant::now() + Duration::from_secs(token_resp.expires_in.saturating_sub(60));
+    let expires_at = Instant::now()
+      + Duration::from_secs(token_resp.expires_in.saturating_sub(60));
 
     *self.token.lock() = Some(CachedToken {
       access_token: token_resp.access_token,
@@ -302,7 +303,10 @@ async fn fetch_preview_urls(
 }
 
 /// Scrapes a single Spotify embed page for an `audioPreview.url`.
-async fn fetch_embed_preview(http: &reqwest::Client, url: &str) -> Option<String> {
+async fn fetch_embed_preview(
+  http: &reqwest::Client,
+  url: &str,
+) -> Option<String> {
   let html = http.get(url).send().await.ok()?.text().await.ok()?;
 
   // The embed page contains inline JSON with an "audioPreview" object.

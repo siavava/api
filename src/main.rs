@@ -42,8 +42,8 @@ async fn main() -> Result<()> {
   dotenv().ok();
   tracing_subscriber::fmt::init();
 
-  let mongodb_uri =
-    std::env::var("MONGODB_URI").expect("MONGODB_URI not set in environment variables!");
+  let mongodb_uri = std::env::var("MONGODB_URI")
+    .expect("MONGODB_URI not set in environment variables!");
 
   let port = {
     let res = std::env::var("PORT");
@@ -82,7 +82,10 @@ async fn main() -> Result<()> {
           .allow_any_origin() // <--- this
           // .allowed_origin_fn(verify_cors)
           .allowed_methods(vec!["GET", "PUT", "POST", "DELETE"])
-          .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+          .allowed_headers(vec![
+            http::header::AUTHORIZATION,
+            http::header::ACCEPT,
+          ])
           .allowed_header(http::header::CONTENT_TYPE)
           .max_age(3600),
       )

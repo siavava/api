@@ -88,3 +88,6 @@ pub struct CommentEvent {
   /// The response payload to forward to subscribed clients.
   pub response: CommentResponse,
 }
+
+#[cfg(test)]
+mod tests;

@@ -40,6 +40,9 @@ pub mod models;
 pub mod protocol;
 pub mod routes;
 
+#[cfg(test)]
+mod testutil;
+
 /// Shared application state, passed to all route handlers via
 /// `actix_web::web::Data`.
 #[derive(Clone)]
@@ -68,7 +71,8 @@ impl AppState {
   /// Creates a new [`AppState`], initializing broadcasters.
   pub fn new(db_client: Client) -> Self {
     let views_collection = views::get_collection(&db_client);
-    let view_events_handler = sse::EventsBroadcaster::<PageViews>::create(views_collection, true);
+    let view_events_handler =
+      sse::EventsBroadcaster::<PageViews>::create(views_collection, true);
     let (comment_events, _) = broadcast::channel::<CommentEvent>(256);
     let (view_events, _) = broadcast::channel::<ViewEvent>(256);
     let (active_count_events, _) = broadcast::channel::<usize>(256);

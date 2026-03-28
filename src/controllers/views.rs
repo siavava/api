@@ -11,6 +11,32 @@ use crate::models::{connect::EventSenders, views::*};
 use futures::TryStreamExt;
 use mongodb::{Client, bson::doc, error::Error as DbError};
 
+/// Trait abstracting view-count DB operations for testability.
+#[allow(async_fn_in_trait)]
+pub trait ViewsOps: Send + Sync {
+  async fn get_views(
+    &self,
+    route: &str,
+    increment: ViewsIncrement,
+  ) -> Result<PageViews, String>;
+  async fn get_all_views(&self) -> Result<Vec<PageViews>, String>;
+}
+
+impl ViewsOps for Client {
+  async fn get_views(
+    &self,
+    route: &str,
+    increment: ViewsIncrement,
+  ) -> Result<PageViews, String> {
+    get_views(self, route, increment)
+      .await
+      .map_err(|e| e.to_string())
+  }
+  async fn get_all_views(&self) -> Result<Vec<PageViews>, String> {
+    get_all_views(self).await.map_err(|e| e.to_string())
+  }
+}
+
 const COLL_NAME: &str = "views";
 
 /// Returns a handle to the `views` MongoDB collection.
@@ -85,7 +111,10 @@ pub async fn get_views(
 /// # Returns
 ///
 /// `Ok(())` on success, or a `DbError` on failure.
-pub async fn insert_view(client: &Client, views: PageViews) -> Result<(), DbError> {
+pub async fn insert_view(
+  client: &Client,
+  views: PageViews,
+) -> Result<(), DbError> {
   let collection = get_collection(client);
   let filter = doc! { "route": &views.route };
   let update = doc! { "$set": { "count": views.count as i32 } };
@@ -110,7 +139,10 @@ pub async fn insert_view(client: &Client, views: PageViews) -> Result<(), DbErro
 /// # Returns
 ///
 /// `Ok(())` on success. Fails on the first error encountered.
-pub async fn insert_views(client: &Client, views: Vec<PageViews>) -> Result<(), DbError> {
+pub async fn insert_views(
+  client: &Client,
+  views: Vec<PageViews>,
+) -> Result<(), DbError> {
   let futures = views.into_iter().map(|view| {
     let client = client.clone();
     async move { insert_view(&client, view).await }
@@ -164,9 +196,14 @@ pub async fn get_all_views(client: &Client) -> Result<Vec<PageViews>, DbError> {
 /// Increments the view count for a path and broadcasts the update.
 ///
 /// Called when a client's active path changes. No-ops if `path` is `None`.
-pub async fn track_page_view(client: &Client, senders: &EventSenders, path: Option<&str>) {
+pub async fn track_page_view(
+  client: &Client,
+  senders: &EventSenders,
+  path: Option<&str>,
+) {
   if let Some(path) = path
-    && let Ok(updated) = get_views(client, path, ViewsIncrement::INCREMENT).await
+    && let Ok(updated) =
+      get_views(client, path, ViewsIncrement::INCREMENT).await
   {
     let _ = senders.views.send(ViewEvent { views: updated });
   }

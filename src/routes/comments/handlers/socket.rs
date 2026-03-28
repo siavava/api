@@ -1,9 +1,11 @@
 //! WebSocket action handlers for comment operations.
 
 use crate::{
-  controllers::comments,
+  controllers::comments::CommentOps,
   db::parse_oid,
-  models::comments::{BlogComment, CommentEdit, CommentRequest, CommentResponse},
+  models::comments::{
+    BlogComment, CommentEdit, CommentRequest, CommentResponse,
+  },
 };
 
 /// Response paired with an optional broadcast path.
@@ -26,7 +28,7 @@ fn err(message: impl Into<String>) -> Handled {
 /// Parses a raw WebSocket text frame and dispatches it to the
 /// matching handler.
 pub async fn handle_message(
-  db: &mongodb::Client,
+  db: &impl CommentOps,
   text: &str,
   active_route: &mut Option<String>,
 ) -> Handled {
@@ -40,12 +42,14 @@ pub async fn handle_message(
 
 /// Dispatches a pre-parsed [`CommentRequest`] to the matching handler.
 pub async fn handle_request(
-  db: &mongodb::Client,
+  db: &impl CommentOps,
   request: CommentRequest,
   active_route: &mut Option<String>,
 ) -> Handled {
   match request {
-    CommentRequest::Create { comment, reply_to } => handle_create(db, comment, reply_to).await,
+    CommentRequest::Create { comment, reply_to } => {
+      handle_create(db, comment, reply_to).await
+    }
     CommentRequest::Edit { id, edit } => handle_edit(db, id, edit).await,
     CommentRequest::Like { id } => handle_like(db, id).await,
     CommentRequest::Delete { id } => handle_delete(db, id).await,
@@ -58,7 +62,7 @@ pub async fn handle_request(
 
 /// Creates a new comment (optionally as a reply).
 async fn handle_create(
-  db: &mongodb::Client,
+  db: &impl CommentOps,
   comment: BlogComment,
   reply_to: Option<String>,
 ) -> Handled {
@@ -71,20 +75,24 @@ async fn handle_create(
     None => None,
   };
 
-  match comments::create_comment(db, comment, parent_oid.as_ref()).await {
+  match db.create_comment(comment, parent_oid.as_ref()).await {
     Ok(created) => (CommentResponse::Created { comment: created }, Some(path)),
     Err(e) => err(format!("failed to create comment: {e}")),
   }
 }
 
 /// Edits an existing comment's text.
-async fn handle_edit(db: &mongodb::Client, id: String, edit: CommentEdit) -> Handled {
+async fn handle_edit(
+  db: &impl CommentOps,
+  id: String,
+  edit: CommentEdit,
+) -> Handled {
   let oid = match parse_oid(&id) {
     Ok(oid) => oid,
     Err(e) => return err(e),
   };
 
-  match comments::edit_comment(db, &oid, edit).await {
+  match db.edit_comment(&oid, edit).await {
     Ok(Some(updated)) => {
       let path = updated.path.clone();
       (CommentResponse::Updated { comment: updated }, Some(path))
@@ -95,13 +103,13 @@ async fn handle_edit(db: &mongodb::Client, id: String, edit: CommentEdit) -> Han
 }
 
 /// Increments a comment's like count.
-async fn handle_like(db: &mongodb::Client, id: String) -> Handled {
+async fn handle_like(db: &impl CommentOps, id: String) -> Handled {
   let oid = match parse_oid(&id) {
     Ok(oid) => oid,
     Err(e) => return err(e),
   };
 
-  match comments::like_comment(db, &oid).await {
+  match db.like_comment(&oid).await {
     Ok(Some(liked)) => {
       let path = liked.path.clone();
       (CommentResponse::Liked { comment: liked }, Some(path))
@@ -112,13 +120,13 @@ async fn handle_like(db: &mongodb::Client, id: String) -> Handled {
 }
 
 /// Deletes a comment and all its nested replies.
-async fn handle_delete(db: &mongodb::Client, id: String) -> Handled {
+async fn handle_delete(db: &impl CommentOps, id: String) -> Handled {
   let oid = match parse_oid(&id) {
     Ok(oid) => oid,
     Err(e) => return err(e),
   };
 
-  match comments::delete_comment(db, &oid).await {
+  match db.delete_comment(&oid).await {
     Ok((count, Some(path))) if count > 0 => (
       CommentResponse::Deleted {
         id,
@@ -132,9 +140,16 @@ async fn handle_delete(db: &mongodb::Client, id: String) -> Handled {
 }
 
 /// Lists all top-level comments for a page path.
-async fn handle_list(db: &mongodb::Client, path: String, actor: Option<String>) -> Handled {
-  match comments::list_comments(db, &path, actor.as_deref()).await {
+async fn handle_list(
+  db: &impl CommentOps,
+  path: String,
+  actor: Option<String>,
+) -> Handled {
+  match db.list_comments(&path, actor.as_deref()).await {
     Ok(list) => (CommentResponse::List { comments: list }, None),
     Err(e) => err(format!("failed to list comments: {e}")),
   }
 }
+
+#[cfg(test)]
+mod tests;

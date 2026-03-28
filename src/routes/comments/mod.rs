@@ -225,7 +225,10 @@ async fn ws_event_loop(
 
 /// Returns `true` if the event path matches the client's active
 /// route.
-fn matches_active_route(active_route: &Option<String>, event_path: &str) -> bool {
+fn matches_active_route(
+  active_route: &Option<String>,
+  event_path: &str,
+) -> bool {
   active_route.as_deref() == Some(event_path)
 }
 
@@ -241,7 +244,8 @@ async fn handle_ws_frame(
 ) -> bool {
   match msg {
     Message::Text(text) => {
-      let (response, event_path) = handle_message(db_client, &text, active_route).await;
+      let (response, event_path) =
+        handle_message(db_client, &text, active_route).await;
 
       if let Some(path) = event_path {
         let _ = broadcast_tx.send(CommentEvent { path, response });

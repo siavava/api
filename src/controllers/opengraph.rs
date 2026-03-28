@@ -42,8 +42,11 @@ static SELECTORS: LazyLock<Selectors> = LazyLock::new(|| {
 });
 
 /// Fetches the given URL and parses OpenGraph metadata from the HTML.
-pub async fn fetch_opengraph(target_url: &str) -> Result<OpenGraphData, String> {
-  let parsed = Url::parse(target_url).map_err(|e| format!("Invalid URL: {e}"))?;
+pub async fn fetch_opengraph(
+  target_url: &str,
+) -> Result<OpenGraphData, String> {
+  let parsed =
+    Url::parse(target_url).map_err(|e| format!("Invalid URL: {e}"))?;
   let hostname = parsed.host_str().map(String::from);
 
   let response = HTTP_CLIENT
@@ -77,7 +80,8 @@ pub async fn fetch_opengraph(target_url: &str) -> Result<OpenGraphData, String> 
       .map(|el| el.text().collect::<String>())
   });
 
-  let description = og_description.or_else(|| meta_content(&document, &s.meta_description));
+  let description =
+    og_description.or_else(|| meta_content(&document, &s.meta_description));
 
   // Resolve favicon
   let favicon = resolve_favicon(&document, &parsed);
@@ -119,3 +123,6 @@ fn resolve_favicon(document: &Html, base_url: &Url) -> Option<String> {
     }
   }
 }
+
+#[cfg(test)]
+mod tests;

@@ -14,4 +14,6 @@ mod model;
 mod protocol;
 
 pub use model::{BlogComment, PopulatedComment};
-pub use protocol::{CommentEdit, CommentEvent, CommentRequest, CommentResponse};
+pub use protocol::{
+  CommentEdit, CommentEvent, CommentRequest, CommentResponse,
+};

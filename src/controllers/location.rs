@@ -44,7 +44,9 @@ pub fn get_collection(client: &Client) -> mongodb::Collection<LocationData> {
 ///
 /// A `mongodb::Collection<LocationData>` bound to the `location_history`
 /// collection.
-fn get_history_collection(client: &Client) -> mongodb::Collection<LocationData> {
+fn get_history_collection(
+  client: &Client,
+) -> mongodb::Collection<LocationData> {
   crate::db::collection(client, HISTORY_COLL_NAME)
 }
 
@@ -97,7 +99,11 @@ pub async fn get_last_and_update(
 ///
 /// `Ok(LocationData::default())` — the return value is not meaningful;
 /// the caller only cares about the side effect.
-async fn update_location_history(client: &Client, city: &str, state: &str) -> Result<(), DbError> {
+async fn update_location_history(
+  client: &Client,
+  city: &str,
+  state: &str,
+) -> Result<(), DbError> {
   let history_collection = get_history_collection(client);
 
   history_collection
@@ -135,7 +141,10 @@ async fn update_last_location<'a>(
   let collection = get_collection(client);
 
   let found = collection
-    .find_one_and_update(doc! {}, doc! { "$set": { "city": city, "state": state } })
+    .find_one_and_update(
+      doc! {},
+      doc! { "$set": { "city": city, "state": state } },
+    )
     .upsert(true)
     .return_document(mongodb::options::ReturnDocument::Before)
     .await?;

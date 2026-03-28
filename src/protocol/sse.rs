@@ -47,7 +47,9 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(3);
 ///
 /// * `T` — The document/event type (e.g. [`PageViews`](crate::models::views::PageViews)).
 ///   Must be `Debug + Clone + Send + Sync + Serialize + Default + Eq`.
-pub struct EventsBroadcaster<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> {
+pub struct EventsBroadcaster<
+  T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq,
+> {
   /// Mutex-protected inner state (client list + collection handle).
   mutex: Mutex<BroadcasterInner<T>>,
   /// If `true`, broadcasts the current listener count to all clients whenever
@@ -80,7 +82,9 @@ macro_rules! sender {
 
 /// Internal state behind the [`EventsBroadcaster`] mutex.
 #[derive(Debug, Clone)]
-struct BroadcasterInner<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> {
+struct BroadcasterInner<
+  T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq,
+> {
   /// Currently connected SSE clients.
   clients: Vec<SenderData<T>>,
   /// The MongoDB collection being watched for changes.
@@ -106,7 +110,9 @@ impl std::convert::From<ActiveListeners> for ByteString {
   }
 }
 
-impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq> BroadcasterInner<T> {
+impl<T: 'static + Debug + Clone + Send + Sync + Serialize + Default + Eq>
+  BroadcasterInner<T>
+{
   /// Creates a new inner state with an empty client list.
   ///
   /// # Arguments
@@ -159,7 +165,10 @@ where
   ///    removes unresponsive clients.
   /// 2. **Change-stream listener** — watches the collection and broadcasts
   ///    updates to matching clients.
-  pub fn create(collection: Collection<T>, notify_listener_count: bool) -> Arc<Self> {
+  pub fn create(
+    collection: Collection<T>,
+    notify_listener_count: bool,
+  ) -> Arc<Self> {
     let this = Arc::new(EventsBroadcaster {
       mutex: Mutex::new(BroadcasterInner::new(collection)),
       notify_listener_count,
@@ -229,7 +238,9 @@ where
 
     let mut change_stream = unsafe {
       // SAFETY: this is safe because we are using the same type as the output of the watch
-      std::mem::transmute_copy::<_, ChangeStream<ChangeStreamEvent<T>>>(&watch_handle)
+      std::mem::transmute_copy::<_, ChangeStream<ChangeStreamEvent<T>>>(
+        &watch_handle,
+      )
     };
 
     std::mem::forget(watch_handle);
@@ -300,7 +311,8 @@ where
       // Clone only the senders (Arc bump each), not the filters.
       let (senders, count) = {
         let lock = self.mutex.lock();
-        let senders: Vec<_> = lock.clients.iter().map(|c| c.sender.clone()).collect();
+        let senders: Vec<_> =
+          lock.clients.iter().map(|c| c.sender.clone()).collect();
         let count = senders.len();
         (senders, count)
       };
@@ -328,7 +340,10 @@ where
   ///
   /// An SSE response body that can be returned directly from an Actix-Web
   /// handler. A `"connected"` event is sent immediately upon registration.
-  pub async fn new_client(&self, filter: T) -> Sse<InfallibleStream<ReceiverStream<sse::Event>>> {
+  pub async fn new_client(
+    &self,
+    filter: T,
+  ) -> Sse<InfallibleStream<ReceiverStream<sse::Event>>> {
     let (tx, rx) = mpsc::channel(10);
 
     tx.send(sse::Data::new("connected").event("connected").into())
@@ -373,9 +388,9 @@ where
         .collect()
     };
 
-    let send_futures = matching_senders
-      .iter()
-      .map(|sender| sender.send(sse::Data::new(msg.clone()).event("update").into()));
+    let send_futures = matching_senders.iter().map(|sender| {
+      sender.send(sse::Data::new(msg.clone()).event("update").into())
+    });
 
     future::join_all(send_futures).await;
   }

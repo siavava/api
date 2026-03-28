@@ -89,27 +89,28 @@ impl ConnectRequest {
 
     match scope {
       Scope::Health => {
-        let options: HealthOptions = serde_json::from_value(value).unwrap_or_default();
+        let options: HealthOptions =
+          serde_json::from_value(value).unwrap_or_default();
         Ok(ConnectRequest::Health(options))
       }
       Scope::OpenGraph => {
-        let req: OpenGraphRequest =
-          serde_json::from_value(value).map_err(|e| format!("invalid opengraph request: {e}"))?;
+        let req: OpenGraphRequest = serde_json::from_value(value)
+          .map_err(|e| format!("invalid opengraph request: {e}"))?;
         Ok(ConnectRequest::OpenGraph(req))
       }
       Scope::Views => {
-        let req: ViewsRequest =
-          serde_json::from_value(value).map_err(|e| format!("invalid views request: {e}"))?;
+        let req: ViewsRequest = serde_json::from_value(value)
+          .map_err(|e| format!("invalid views request: {e}"))?;
         Ok(ConnectRequest::Views(req))
       }
       Scope::Playback => {
-        let req: PlaybackRequest =
-          serde_json::from_value(value).map_err(|e| format!("invalid playback request: {e}"))?;
+        let req: PlaybackRequest = serde_json::from_value(value)
+          .map_err(|e| format!("invalid playback request: {e}"))?;
         Ok(ConnectRequest::Playback(req))
       }
       Scope::Comments => {
-        let req: CommentRequest =
-          serde_json::from_value(value).map_err(|e| format!("invalid message: {e}"))?;
+        let req: CommentRequest = serde_json::from_value(value)
+          .map_err(|e| format!("invalid message: {e}"))?;
         Ok(ConnectRequest::Comments(Box::new(req)))
       }
     }
@@ -187,3 +188,6 @@ pub enum ConnectResponse {
   /// A playback-scoped response.
   Playback(PlaybackResponse),
 }
+
+#[cfg(test)]
+mod tests;

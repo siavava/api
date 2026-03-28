@@ -12,7 +12,9 @@ use crate::{
   controllers::{opengraph, views},
   models::{
     comments::{CommentEvent, CommentResponse},
-    connect::{ClientChannels, ConnectRequest, ConnectResponse, OpenGraphResponse},
+    connect::{
+      ClientChannels, ConnectRequest, ConnectResponse, OpenGraphResponse,
+    },
     health::HealthDiagnostics,
     playback::PlaybackResponse,
     views::ViewsResponse,
@@ -20,11 +22,14 @@ use crate::{
   protocol::socket,
   routes::{
     comments::handlers::socket as comment_handlers,
-    playback::handlers::socket as playback_handlers, views::handlers::socket as view_handlers,
+    playback::handlers::socket as playback_handlers,
+    views::handlers::socket as view_handlers,
   },
 };
 
-use actix_web::{Error as ActixError, HttpRequest, HttpResponse, get, web::Data};
+use actix_web::{
+  Error as ActixError, HttpRequest, HttpResponse, get, web::Data,
+};
 use actix_ws::{Message, Session};
 use futures_util::StreamExt;
 use std::sync::{
@@ -86,7 +91,8 @@ async fn ws_event_loop(
 
   // Channel for receiving results from spawned background tasks
   // (e.g. OpenGraph fetches) without blocking the event loop.
-  let (deferred_tx, mut deferred_rx) = tokio::sync::mpsc::channel::<ConnectResponse>(4);
+  let (deferred_tx, mut deferred_rx) =
+    tokio::sync::mpsc::channel::<ConnectResponse>(4);
 
   loop {
     tokio::select! {
@@ -172,15 +178,20 @@ async fn handle_ws_frame(
       let request = match ConnectRequest::parse(&text) {
         Ok(req) => req,
         Err(e) => {
-          let response = ConnectResponse::Comments(CommentResponse::Error { message: e });
+          let response =
+            ConnectResponse::Comments(CommentResponse::Error { message: e });
           return socket::send_json(session, &response).await;
         }
       };
 
       match request {
         ConnectRequest::Comments(comment_req) => {
-          let (response, event_path) =
-            comment_handlers::handle_request(db_client, *comment_req, active_path).await;
+          let (response, event_path) = comment_handlers::handle_request(
+            db_client,
+            *comment_req,
+            active_path,
+          )
+          .await;
 
           if let Some(path) = event_path {
             let _ = comment_tx.send(CommentEvent { path, response });
@@ -194,7 +205,8 @@ async fn handle_ws_frame(
           view_handlers::handle_ws_request(db_client, session, views_req).await
         }
         ConnectRequest::Health(options) => {
-          let diagnostics = HealthDiagnostics::collect(app_state, &options).await;
+          let diagnostics =
+            HealthDiagnostics::collect(app_state, &options).await;
           let response = ConnectResponse::Health(diagnostics);
           socket::send_json(session, &response).await
         }
@@ -203,7 +215,9 @@ async fn handle_ws_frame(
           let tx = deferred_tx.clone();
           actix_web::rt::spawn(async move {
             let response = match spotify {
-              Some(ref client) => playback_handlers::handle_request(client, req).await,
+              Some(ref client) => {
+                playback_handlers::handle_request(client, req).await
+              }
               None => PlaybackResponse::Error {
                 message: "spotify not configured".into(),
               },

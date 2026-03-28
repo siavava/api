@@ -2,7 +2,7 @@
 //! `/api/connect/` endpoint.
 
 use crate::{
-  controllers::views,
+  controllers::views::{ViewsIncrement, ViewsOps},
   models::{
     connect::ConnectResponse,
     views::{ViewsRequest, ViewsResponse},
@@ -11,23 +11,23 @@ use crate::{
 };
 
 use actix_ws::Session;
-use mongodb::Client;
 
 /// Handles a views-scoped WebSocket request.
 ///
 /// Returns `false` if the send failed (connection should be closed).
 pub async fn handle_ws_request(
-  db_client: &Client,
+  db_client: &impl ViewsOps,
   session: &mut Session,
   request: ViewsRequest,
 ) -> bool {
   let response = match request {
     ViewsRequest::List => {
-      let all = views::get_all_views(db_client).await.unwrap_or_default();
+      let all = db_client.get_all_views().await.unwrap_or_default();
       ConnectResponse::Views(ViewsResponse::List { views: all })
     }
     ViewsRequest::Get { path } => {
-      let page = views::get_views(db_client, &path, views::ViewsIncrement::INCREMENT)
+      let page = db_client
+        .get_views(&path, ViewsIncrement::INCREMENT)
         .await
         .unwrap_or_default();
       ConnectResponse::Views(ViewsResponse::Update { views: page })

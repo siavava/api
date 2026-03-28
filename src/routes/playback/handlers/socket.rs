@@ -6,10 +6,15 @@ use crate::{
 };
 
 /// Dispatches a pre-parsed [`PlaybackRequest`] to the matching handler.
-pub async fn handle_request(spotify: &SpotifyClient, request: PlaybackRequest) -> PlaybackResponse {
+pub async fn handle_request(
+  spotify: &SpotifyClient,
+  request: PlaybackRequest,
+) -> PlaybackResponse {
   match request {
     PlaybackRequest::LastPlayed => handle_last_played(spotify).await,
-    PlaybackRequest::Recents { limit } => handle_recents(spotify, limit.unwrap_or(20)).await,
+    PlaybackRequest::Recents { limit } => {
+      handle_recents(spotify, limit.unwrap_or(20)).await
+    }
   }
 }
 
@@ -24,7 +29,10 @@ async fn handle_last_played(spotify: &SpotifyClient) -> PlaybackResponse {
 }
 
 /// Fetches recently played tracks.
-async fn handle_recents(spotify: &SpotifyClient, limit: u32) -> PlaybackResponse {
+async fn handle_recents(
+  spotify: &SpotifyClient,
+  limit: u32,
+) -> PlaybackResponse {
   match spotify.recents(limit).await {
     Ok(tracks) => PlaybackResponse::Recents { tracks },
     Err(e) => PlaybackResponse::Error {

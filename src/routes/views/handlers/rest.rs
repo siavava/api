@@ -80,7 +80,10 @@ pub async fn delete_views(
         Err(_) => Ok(HttpResponse::InternalServerError().json("Error")),
       }
     }
-    None => Ok(HttpResponse::BadRequest().json("Invalid Request: You must provide `requested`")),
+    None => Ok(
+      HttpResponse::BadRequest()
+        .json("Invalid Request: You must provide `requested`"),
+    ),
   }
 }
 

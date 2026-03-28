@@ -19,6 +19,76 @@ use mongodb::{
   error::Error as DbError,
 };
 
+/// Trait abstracting comment DB operations for testability.
+#[allow(async_fn_in_trait)]
+pub trait CommentOps: Send + Sync {
+  async fn create_comment(
+    &self,
+    comment: BlogComment,
+    reply_to: Option<&ObjectId>,
+  ) -> Result<BlogComment, String>;
+  async fn edit_comment(
+    &self,
+    id: &ObjectId,
+    edit: CommentEdit,
+  ) -> Result<Option<PopulatedComment>, String>;
+  async fn like_comment(
+    &self,
+    id: &ObjectId,
+  ) -> Result<Option<PopulatedComment>, String>;
+  async fn delete_comment(
+    &self,
+    id: &ObjectId,
+  ) -> Result<(u64, Option<String>), String>;
+  async fn list_comments(
+    &self,
+    path: &str,
+    actor: Option<&str>,
+  ) -> Result<Vec<PopulatedComment>, String>;
+}
+
+impl CommentOps for Client {
+  async fn create_comment(
+    &self,
+    comment: BlogComment,
+    reply_to: Option<&ObjectId>,
+  ) -> Result<BlogComment, String> {
+    create_comment(self, comment, reply_to)
+      .await
+      .map_err(|e| e.to_string())
+  }
+  async fn edit_comment(
+    &self,
+    id: &ObjectId,
+    edit: CommentEdit,
+  ) -> Result<Option<PopulatedComment>, String> {
+    edit_comment(self, id, edit)
+      .await
+      .map_err(|e| e.to_string())
+  }
+  async fn like_comment(
+    &self,
+    id: &ObjectId,
+  ) -> Result<Option<PopulatedComment>, String> {
+    like_comment(self, id).await.map_err(|e| e.to_string())
+  }
+  async fn delete_comment(
+    &self,
+    id: &ObjectId,
+  ) -> Result<(u64, Option<String>), String> {
+    delete_comment(self, id).await.map_err(|e| e.to_string())
+  }
+  async fn list_comments(
+    &self,
+    path: &str,
+    actor: Option<&str>,
+  ) -> Result<Vec<PopulatedComment>, String> {
+    list_comments(self, path, actor)
+      .await
+      .map_err(|e| e.to_string())
+  }
+}
+
 /// Returns the timestamp string if it parses as valid RFC 3339, otherwise `None`.
 fn validate_rfc3339(s: &str) -> Option<String> {
   DateTime::parse_from_rfc3339(s)
@@ -63,7 +133,9 @@ async fn update_and_populate(
   let filter = doc! { "_id": id };
   collection.update_one(filter.clone(), update).await?;
   match collection.find_one(filter).await? {
-    Some(comment) => Ok(Some(populate_replies(collection, comment, None).await?)),
+    Some(comment) => {
+      Ok(Some(populate_replies(collection, comment, None).await?))
+    }
     None => Ok(None),
   }
 }
@@ -88,8 +160,8 @@ pub async fn create_comment(
   reply_to: Option<&ObjectId>,
 ) -> Result<BlogComment, DbError> {
   let collection = get_collection(client);
-  let created_time =
-    validate_rfc3339(&comment.created_time).unwrap_or_else(|| Utc::now().to_rfc3339());
+  let created_time = validate_rfc3339(&comment.created_time)
+    .unwrap_or_else(|| Utc::now().to_rfc3339());
   let comment = BlogComment {
     created_time,
     edited_time: None,
@@ -203,7 +275,9 @@ pub async fn delete_comment(
   // Recursively delete all replies concurrently
   let reply_futures: Vec<_> = parse_oids(&comment.replies)
     .into_iter()
-    .map(|reply_oid| Box::pin(async move { delete_comment(client, &reply_oid).await }))
+    .map(|reply_oid| {
+      Box::pin(async move { delete_comment(client, &reply_oid).await })
+    })
     .collect();
 
   let mut deleted_count: u64 = 0;
@@ -269,7 +343,8 @@ pub async fn list_comments(
       "is_private": { "$ne": true },
     },
   };
-  let top_level: Vec<BlogComment> = collection.find(filter).await?.try_collect().await?;
+  let top_level: Vec<BlogComment> =
+    collection.find(filter).await?.try_collect().await?;
 
   let mut populated = Vec::with_capacity(top_level.len());
   for comment in top_level {
@@ -302,7 +377,11 @@ fn populate_replies<'a>(
   comment: BlogComment,
   actor: Option<&'a str>,
 ) -> std::pin::Pin<
-  Box<dyn std::future::Future<Output = Result<PopulatedComment, DbError>> + Send + 'a>,
+  Box<
+    dyn std::future::Future<Output = Result<PopulatedComment, DbError>>
+      + Send
+      + 'a,
+  >,
 > {
   Box::pin(async move {
     if comment.replies.is_empty() {
@@ -311,7 +390,8 @@ fn populate_replies<'a>(
 
     let reply_oids = parse_oids(&comment.replies);
     let filter = doc! { "_id": { "$in": &reply_oids } };
-    let reply_comments: Vec<BlogComment> = collection.find(filter).await?.try_collect().await?;
+    let reply_comments: Vec<BlogComment> =
+      collection.find(filter).await?.try_collect().await?;
 
     // Filter out private replies by other authors
     let visible_replies: Vec<BlogComment> = reply_comments

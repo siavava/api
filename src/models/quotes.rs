@@ -23,8 +23,9 @@ pub struct QuoteData {
 
 /// Parsed quotes, deserialized once on first access.
 static QUOTES: LazyLock<Vec<Quote>> = LazyLock::new(|| {
-  let data: QuoteData = serde_json::from_str(include_str!("../static/quotes.json"))
-    .expect("quotes.json was not well-formatted");
+  let data: QuoteData =
+    serde_json::from_str(include_str!("../static/quotes.json"))
+      .expect("quotes.json was not well-formatted");
   data.quotes
 });
 
@@ -32,3 +33,6 @@ static QUOTES: LazyLock<Vec<Quote>> = LazyLock::new(|| {
 pub fn get_all() -> &'static [Quote] {
   &QUOTES
 }
+
+#[cfg(test)]
+mod tests;

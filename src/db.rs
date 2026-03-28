@@ -53,3 +53,6 @@ pub fn parse_oids(ids: &[String]) -> Vec<ObjectId> {
     .filter_map(|s| ObjectId::parse_str(s).ok())
     .collect()
 }
+
+#[cfg(test)]
+mod tests;

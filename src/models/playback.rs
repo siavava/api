@@ -54,3 +54,6 @@ pub enum PlaybackResponse {
   /// An error message.
   Error { message: String },
 }
+
+#[cfg(test)]
+mod tests;

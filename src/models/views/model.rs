@@ -71,3 +71,6 @@ impl From<ByteString> for PageViews {
     serde_json::from_str(bytes.as_ref()).unwrap_or_default()
   }
 }
+
+#[cfg(test)]
+mod tests;

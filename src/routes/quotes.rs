@@ -110,7 +110,8 @@ async fn quotidian() -> Html {
   }
 
   // Serialize all quotes so we can embed them into the returned HTML and let client-side JS cycle through them.
-  let quotes_json = serde_json::to_string(quotes_data).expect("Failed to serialize quotes");
+  let quotes_json =
+    serde_json::to_string(quotes_data).expect("Failed to serialize quotes");
 
   // Each request returns a web page which will itself cycle through ALL the quotes (client-side).
   Html::new(format!(

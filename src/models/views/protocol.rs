@@ -36,3 +36,6 @@ pub struct ViewEvent {
   /// The updated page views data.
   pub views: PageViews,
 }
+
+#[cfg(test)]
+mod tests;

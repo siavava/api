@@ -69,3 +69,6 @@ impl HealthDiagnostics {
     }
   }
 }
+
+#[cfg(test)]
+mod tests;

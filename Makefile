@@ -11,10 +11,15 @@ ifeq (update,$(firstword $(MAKECMDGOALS)))
   $(eval $(UPDATE_ARGS):;@:)
 endif
 
-.PHONY: build dev test docs style-check lint login
+all: build
+
+.PHONY: build dev test docs style-check lint audit
 
 build:
 	@cargo build --release
+
+debug-build:
+	cargo build --verbose
 
 dev:
 	cargo watch -x run
@@ -27,7 +32,9 @@ fmt:
 
 TESTS = ""
 test:
-	@cargo test $(TESTS) --offline --lib -- --color=always --nocapture
+	cargo test $(TESTS) --offline --lib -- --color=always --nocapture
+
+test-all: lint audit test
 
 docs: build
 	@cargo doc # --no-deps
@@ -41,7 +48,7 @@ lint:
 	cargo clippy --all-targets --all-features -- -D warnings
 
 audit:
-	@cargo audit
+	cargo audit
 
 update:
 	@cargo update $(UPDATE_ARGS)
