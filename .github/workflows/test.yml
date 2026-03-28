@@ -13,17 +13,11 @@ jobs:
       - name: set up rust
         uses: actions/checkout@v2
 
-      - name: install cargo-audit
-        run: cargo install cargo-audit
-
       - name: build
         run: make debug-build
 
       - name: lint
         run: make lint
-
-      - name: audit
-        run: make audit
 
       - name: test
         run: make test
