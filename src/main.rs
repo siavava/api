@@ -5,13 +5,13 @@ use actix_web::{
   middleware::{Logger, NormalizePath, TrailingSlash},
   web::{self},
 };
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use mongodb::{
   Client,
   options::{ClientOptions, ServerApi, ServerApiVersion},
 };
 use server::{AppState, app_state, routes};
-use std::{env, io::Result};
+use std::{self, io::Result};
 use tracing::{error, info};
 
 /// `GET /hello/{name}` — simple health-check / greeting endpoint.
@@ -42,10 +42,11 @@ async fn main() -> Result<()> {
   dotenv().ok();
   tracing_subscriber::fmt::init();
 
-  let mongodb_uri = env::var("MONGODB_URI").expect("MONGODB_URI not set in environment variables!");
+  let mongodb_uri =
+    std::env::var("MONGODB_URI").expect("MONGODB_URI not set in environment variables!");
 
   let port = {
-    let res = env::var("PORT");
+    let res = std::env::var("PORT");
     match res {
       Ok(value) => value.parse::<u16>().unwrap_or_else(|err| {
         error!("ERROR PARSING PROVIDED PORT '{value}': {err}");
