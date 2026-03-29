@@ -1,4 +1,8 @@
 //! WebSocket action handlers for comment operations.
+//!
+//! These handlers are pure comment CRUD — they do **not** manage
+//! the client's active path. Path watching is handled separately
+//! by the `watch` scope in the unified `/api/connect/` endpoint.
 
 use crate::{
   controllers::comments::CommentOps,
@@ -25,26 +29,29 @@ fn err(message: impl Into<String>) -> Handled {
   )
 }
 
-/// Parses a raw WebSocket text frame and dispatches it to the
-/// matching handler.
-pub async fn handle_message(
-  db: &impl CommentOps,
-  text: &str,
-  active_route: &mut Option<String>,
-) -> Handled {
+/// Parses a raw WebSocket text frame as a [`CommentRequest`] and
+/// dispatches it to the matching handler.
+///
+/// Returns a [`Handled`] tuple: the response payload and an
+/// optional broadcast path (present only for mutations).
+pub async fn handle_message(db: &impl CommentOps, text: &str) -> Handled {
   let request: CommentRequest = match serde_json::from_str(text) {
     Ok(req) => req,
     Err(e) => return err(format!("invalid message: {e}")),
   };
 
-  handle_request(db, request, active_route).await
+  handle_request(db, request).await
 }
 
-/// Dispatches a pre-parsed [`CommentRequest`] to the matching handler.
+/// Dispatches a pre-parsed [`CommentRequest`] to the matching
+/// handler.
+///
+/// Mutations (create, edit, like, delete) return `Some(path)` in
+/// the second tuple element so the caller can broadcast the event.
+/// Read-only operations (`List`) return `None`.
 pub async fn handle_request(
   db: &impl CommentOps,
   request: CommentRequest,
-  active_route: &mut Option<String>,
 ) -> Handled {
   match request {
     CommentRequest::Create { comment, reply_to } => {
@@ -53,10 +60,7 @@ pub async fn handle_request(
     CommentRequest::Edit { id, edit } => handle_edit(db, id, edit).await,
     CommentRequest::Like { id } => handle_like(db, id).await,
     CommentRequest::Delete { id } => handle_delete(db, id).await,
-    CommentRequest::List { path, actor } => {
-      *active_route = Some(path.clone());
-      handle_list(db, path, actor).await
-    }
+    CommentRequest::List { path, actor } => handle_list(db, path, actor).await,
   }
 }
 

@@ -26,7 +26,7 @@ pub struct CommentEdit {
 /// | `Edit`   | Update a comment's text.                 |
 /// | `Like`   | Increment a comment's like count by 1.   |
 /// | `Delete` | Delete a comment and all nested replies.  |
-/// | `List`   | List top-level comments for a path.      |
+/// | `List`   | List top-level comments for a path (does not affect active route). |
 #[derive(Debug, Deserialize)]
 #[serde(tag = "action", rename_all = "lowercase")]
 pub enum CommentRequest {

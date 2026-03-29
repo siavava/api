@@ -7,12 +7,14 @@
 //! and dispatched to the appropriate handler; a
 //! [`CommentResponse`] is sent back as JSON.
 //!
-//! Clients are also notified of changes made by any client. When
-//! a client sends a `List` request, the requested path becomes
-//! that client's "active route". Subsequent mutation events
-//! (create, edit, like, delete) on that path — triggered by *any*
-//! connected client (including self) — are forwarded automatically
-//! via the broadcast channel.
+//! Clients are also notified of changes made by any client.
+//! Mutation events (create, edit, like, delete) on the client's
+//! active route — triggered by *any* connected client (including
+//! self) — are forwarded automatically via the broadcast channel.
+//!
+//! **Note:** The standalone `/comments/` endpoint does not support
+//! setting an active route. Use the unified `/api/connect/`
+//! endpoint with the `watch` scope for broadcast filtering.
 
 pub mod handlers;
 
@@ -44,13 +46,12 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
 /// 3. The request is dispatched to the matching controller
 ///    function.
 /// 4. For `List` requests, the response is sent directly back to
-///    the client and the requested path becomes the client's
-///    **active route**.
+///    the client.
 /// 5. For mutation requests (create, edit, like, delete), the
-///    response is **not** sent directly — instead it is broadcast
-///    to **all** clients (including the sender) whose active route
-///    matches the affected path. Errors are still sent directly to
-///    the requesting client only.
+///    response is broadcast to all clients on the unified
+///    `/api/connect/` endpoint whose active route matches the
+///    affected path. Errors are sent directly to the requesting
+///    client only.
 ///
 /// Also handles `Ping`/`Pong` for keep-alive and logs client
 /// disconnects.
@@ -194,42 +195,21 @@ async fn ws_event_loop(
   mut msg_stream: actix_ws::MessageStream,
   db_client: mongodb::Client,
   broadcast_tx: broadcast::Sender<CommentEvent>,
-  mut broadcast_rx: broadcast::Receiver<CommentEvent>,
+  mut _broadcast_rx: broadcast::Receiver<CommentEvent>,
 ) {
-  let mut active_route: Option<String> = None;
-
   loop {
     tokio::select! {
       ws_msg = msg_stream.next() => {
         let Some(Ok(msg)) = ws_msg else { break };
         if !handle_ws_frame(
           msg, &db_client, &mut session,
-          &broadcast_tx, &mut active_route,
+          &broadcast_tx,
         ).await {
-          break;
-        }
-      }
-
-      event = broadcast_rx.recv() => {
-        let Ok(event) = event else { continue };
-        if !matches_active_route(&active_route, &event.path) {
-          continue;
-        }
-        if !socket::send_json(&mut session, &event.response).await {
           break;
         }
       }
     }
   }
-}
-
-/// Returns `true` if the event path matches the client's active
-/// route.
-fn matches_active_route(
-  active_route: &Option<String>,
-  event_path: &str,
-) -> bool {
-  active_route.as_deref() == Some(event_path)
 }
 
 /// Processes a single incoming WebSocket frame.
@@ -240,12 +220,10 @@ async fn handle_ws_frame(
   db_client: &mongodb::Client,
   session: &mut Session,
   broadcast_tx: &broadcast::Sender<CommentEvent>,
-  active_route: &mut Option<String>,
 ) -> bool {
   match msg {
     Message::Text(text) => {
-      let (response, event_path) =
-        handle_message(db_client, &text, active_route).await;
+      let (response, event_path) = handle_message(db_client, &text).await;
 
       if let Some(path) = event_path {
         let _ = broadcast_tx.send(CommentEvent { path, response });

@@ -41,7 +41,7 @@ docs: build
 
 style-check:
 	@rustup component add rustfmt 2> /dev/null
-	cargo fmt --all -- --check
+	cargo +nightly fmt --all -- --check
 
 lint:
 	@rustup component add clippy 2> /dev/null

@@ -98,6 +98,34 @@ fn parse_playback_scope_last_played() {
   assert!(matches!(req, ConnectRequest::Playback(_)));
 }
 
+// ── Watch scope parsing ──────────────────────────────
+
+#[test]
+fn parse_watch_scope() {
+  let input = r#"{
+    "scope": "watch",
+    "path": "/blog/post-1"
+  }"#;
+  let req = ConnectRequest::parse(input).unwrap();
+  match req {
+    ConnectRequest::Watch(watch) => {
+      assert_eq!(watch.path, "/blog/post-1");
+    }
+    other => panic!("expected Watch, got {:?}", other),
+  }
+}
+
+#[test]
+fn parse_watch_scope_missing_path() {
+  let input = r#"{"scope": "watch"}"#;
+  let err = ConnectRequest::parse(input).unwrap_err();
+  assert!(
+    err.contains("invalid watch request"),
+    "expected 'invalid watch request' in error, \
+     got: {err}"
+  );
+}
+
 #[test]
 fn parse_invalid_json() {
   let err = ConnectRequest::parse("not json").unwrap_err();
@@ -178,6 +206,20 @@ fn connect_response_opengraph_has_scope_tag() {
   });
   let json = serde_json::to_value(&resp).unwrap();
   assert_eq!(json["scope"], "opengraph");
+}
+
+// ── Watch response serialization ─────────────────────
+
+#[test]
+fn connect_response_watch_has_scope_tag_and_fields() {
+  let resp = ConnectResponse::Watch(WatchResponse {
+    path: "/blog/post-1".into(),
+    status: "success",
+  });
+  let json = serde_json::to_value(&resp).unwrap();
+  assert_eq!(json["scope"], "watch");
+  assert_eq!(json["path"], "/blog/post-1");
+  assert_eq!(json["status"], "success");
 }
 
 // ── OpenGraphResponse serialization ────────────────

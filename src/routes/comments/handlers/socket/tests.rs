@@ -13,10 +13,8 @@ use crate::{
 #[tokio::test]
 async fn handle_message_invalid_json_returns_error() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
-  let (resp, broadcast) =
-    handle_message(&db, "not json!", &mut active_route).await;
+  let (resp, broadcast) = handle_message(&db, "not json!").await;
 
   assert!(matches!(resp, CommentResponse::Error { .. }));
   assert!(broadcast.is_none());
@@ -25,7 +23,6 @@ async fn handle_message_invalid_json_returns_error() {
 #[tokio::test]
 async fn handle_message_valid_create_json() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let json = concat!(
     r#"{"action":"create","comment":"#,
@@ -33,7 +30,7 @@ async fn handle_message_valid_create_json() {
     r#""author":"alice","path":"/blog/test","#,
     r#""created_time":""}}"#,
   );
-  let (resp, broadcast) = handle_message(&db, json, &mut active_route).await;
+  let (resp, broadcast) = handle_message(&db, json).await;
 
   assert!(matches!(resp, CommentResponse::Created { .. }));
   assert_eq!(broadcast, Some("/blog/test".into()));
@@ -44,7 +41,6 @@ async fn handle_message_valid_create_json() {
 #[tokio::test]
 async fn create_comment_assigns_id_and_broadcasts() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let comment = make_comment("/blog/a", "hello", "bob");
   let req = CommentRequest::Create {
@@ -52,7 +48,7 @@ async fn create_comment_assigns_id_and_broadcasts() {
     reply_to: None,
   };
 
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::Created { comment } => {
@@ -68,7 +64,6 @@ async fn create_comment_assigns_id_and_broadcasts() {
 #[tokio::test]
 async fn create_reply_links_to_parent() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   // Seed a parent comment.
   let parent = make_comment("/blog/a", "parent", "alice");
@@ -82,7 +77,7 @@ async fn create_reply_links_to_parent() {
     reply_to: Some(parent_id.clone()),
   };
 
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::Created { comment } => {
@@ -96,7 +91,6 @@ async fn create_reply_links_to_parent() {
 #[tokio::test]
 async fn create_reply_with_invalid_reply_to_returns_error() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let comment = make_comment("/blog/a", "reply", "bob");
   let req = CommentRequest::Create {
@@ -104,7 +98,7 @@ async fn create_reply_with_invalid_reply_to_returns_error() {
     reply_to: Some("not-a-valid-oid".into()),
   };
 
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   assert!(matches!(resp, CommentResponse::Error { .. }));
   assert!(broadcast.is_none());
@@ -115,7 +109,6 @@ async fn create_reply_with_invalid_reply_to_returns_error() {
 #[tokio::test]
 async fn edit_comment_returns_updated_and_broadcasts() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let comment = make_comment("/blog/a", "original", "alice");
   let created = db.create_comment(comment, None).await.unwrap();
@@ -129,7 +122,7 @@ async fn edit_comment_returns_updated_and_broadcasts() {
     },
   };
 
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::Updated { comment } => {
@@ -144,7 +137,6 @@ async fn edit_comment_returns_updated_and_broadcasts() {
 #[tokio::test]
 async fn edit_nonexistent_comment_returns_error() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let fake_id = mongodb::bson::oid::ObjectId::new().to_hex();
   let req = CommentRequest::Edit {
@@ -155,7 +147,7 @@ async fn edit_nonexistent_comment_returns_error() {
     },
   };
 
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::Error { message } => {
@@ -171,14 +163,13 @@ async fn edit_nonexistent_comment_returns_error() {
 #[tokio::test]
 async fn like_comment_increments_and_broadcasts() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let comment = make_comment("/blog/a", "likeable", "alice");
   let created = db.create_comment(comment, None).await.unwrap();
   let id = created.id.unwrap().to_hex();
 
   let req = CommentRequest::Like { id };
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::Liked { comment } => {
@@ -192,11 +183,10 @@ async fn like_comment_increments_and_broadcasts() {
 #[tokio::test]
 async fn like_nonexistent_comment_returns_error() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let fake_id = mongodb::bson::oid::ObjectId::new().to_hex();
   let req = CommentRequest::Like { id: fake_id };
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::Error { message } => {
@@ -212,14 +202,13 @@ async fn like_nonexistent_comment_returns_error() {
 #[tokio::test]
 async fn delete_comment_returns_count_and_broadcasts() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let comment = make_comment("/blog/a", "doomed", "alice");
   let created = db.create_comment(comment, None).await.unwrap();
   let id = created.id.unwrap().to_hex();
 
   let req = CommentRequest::Delete { id: id.clone() };
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::Deleted {
@@ -237,11 +226,10 @@ async fn delete_comment_returns_count_and_broadcasts() {
 #[tokio::test]
 async fn delete_nonexistent_comment_returns_error() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let fake_id = mongodb::bson::oid::ObjectId::new().to_hex();
   let req = CommentRequest::Delete { id: fake_id };
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::Error { message } => {
@@ -255,12 +243,11 @@ async fn delete_nonexistent_comment_returns_error() {
 #[tokio::test]
 async fn delete_with_invalid_id_returns_error() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let req = CommentRequest::Delete {
     id: "bad-id".into(),
   };
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   assert!(matches!(resp, CommentResponse::Error { .. }));
   assert!(broadcast.is_none());
@@ -269,9 +256,8 @@ async fn delete_with_invalid_id_returns_error() {
 // ---- handle_request: List ---------------------------------------------------
 
 #[tokio::test]
-async fn list_returns_comments_and_sets_active_route() {
+async fn list_returns_comments_without_broadcast() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   // Seed two comments on the same path.
   let c1 = make_comment("/blog/a", "first", "alice");
@@ -283,7 +269,7 @@ async fn list_returns_comments_and_sets_active_route() {
     path: "/blog/a".into(),
     actor: None,
   };
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::List { comments } => {
@@ -292,19 +278,17 @@ async fn list_returns_comments_and_sets_active_route() {
     other => panic!("expected List, got {other:?}"),
   }
   assert!(broadcast.is_none());
-  assert_eq!(active_route, Some("/blog/a".into()));
 }
 
 #[tokio::test]
 async fn list_empty_path_returns_empty() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   let req = CommentRequest::List {
     path: "/blog/empty".into(),
     actor: None,
   };
-  let (resp, broadcast) = handle_request(&db, req, &mut active_route).await;
+  let (resp, broadcast) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::List { comments } => {
@@ -318,7 +302,6 @@ async fn list_empty_path_returns_empty() {
 #[tokio::test]
 async fn list_filters_private_comments_for_non_author() {
   let db = MockCommentStore::new();
-  let mut active_route = None;
 
   // Public comment.
   let public = make_comment("/blog/a", "public", "alice");
@@ -334,7 +317,7 @@ async fn list_filters_private_comments_for_non_author() {
     path: "/blog/a".into(),
     actor: Some("alice".into()),
   };
-  let (resp, _) = handle_request(&db, req, &mut active_route).await;
+  let (resp, _) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::List { comments } => {
@@ -353,7 +336,7 @@ async fn list_filters_private_comments_for_non_author() {
     path: "/blog/a".into(),
     actor: Some("bob".into()),
   };
-  let (resp, _) = handle_request(&db, req, &mut active_route).await;
+  let (resp, _) = handle_request(&db, req).await;
 
   match resp {
     CommentResponse::List { comments } => {

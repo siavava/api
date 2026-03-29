@@ -1,11 +1,14 @@
 //! # Connect Route
 //!
 //! Unified WebSocket endpoint at `/api/connect/` that multiplexes
-//! both comment operations and view-count watch subscriptions over
-//! a single connection.
+//! comment operations, view-count queries, health checks, OpenGraph
+//! fetches, playback queries, and path watching over a single
+//! connection.
 //!
-//! The client's active path (set by a comment `List` request) is
-//! used for both comment event filtering and view-count updates.
+//! The client's **active path** — set by sending a `watch` scope
+//! request — controls which broadcast events (comment mutations,
+//! view-count changes) are forwarded to the client. Comment `list`
+//! requests can target any path without changing the active path.
 
 use crate::{
   AppState,
@@ -73,8 +76,8 @@ async fn connect_ws(
 /// Main event loop for a single WebSocket client.
 ///
 /// Multiplexes incoming client messages with comment and view-count
-/// broadcast events. The client's `active_path` (set by a comment
-/// `List` request) controls which events are forwarded.
+/// broadcast events. The client's `active_path` (set by a `watch`
+/// scope request) controls which broadcast events are forwarded.
 async fn ws_event_loop(
   mut session: Session,
   mut msg_stream: actix_ws::MessageStream,
@@ -186,12 +189,8 @@ async fn handle_ws_frame(
 
       match request {
         ConnectRequest::Comments(comment_req) => {
-          let (response, event_path) = comment_handlers::handle_request(
-            db_client,
-            *comment_req,
-            active_path,
-          )
-          .await;
+          let (response, event_path) =
+            comment_handlers::handle_request(db_client, *comment_req).await;
 
           if let Some(path) = event_path {
             let _ = comment_tx.send(CommentEvent { path, response });
@@ -225,6 +224,15 @@ async fn handle_ws_frame(
             let _ = tx.send(ConnectResponse::Playback(response)).await;
           });
           true
+        }
+        ConnectRequest::Watch(req) => {
+          *active_path = Some(req.path.clone());
+          let response =
+            ConnectResponse::Watch(crate::models::connect::WatchResponse {
+              path: req.path,
+              status: "success",
+            });
+          socket::send_json(session, &response).await
         }
         ConnectRequest::OpenGraph(req) => {
           // Spawn the fetch so it doesn't block the event loop.

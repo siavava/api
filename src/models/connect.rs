@@ -2,7 +2,7 @@
 //!
 //! Multiplexed protocol types for the `/api/connect` WebSocket endpoint.
 //!
-//! The client's active path (set by a comment `List` request) drives
+//! The client's active path (set by a `watch` scope request) drives
 //! both comment event filtering and view-count update delivery.
 //! There is no separate "views" request scope — view updates are
 //! pushed automatically for the active path.
@@ -26,25 +26,21 @@ pub enum Scope {
   OpenGraph,
   Playback,
   Views,
+  Watch,
   #[default]
   Comments,
 }
 
-/// Incoming WebSocket message from the client.
+/// Request payload for a `watch` scope message.
 ///
-/// Currently only comment operations are supported as requests.
-/// View-count updates are pushed automatically for the active path
-/// (set by a comment `List` request).
-///
-/// The `"scope"` field is accepted but optional; if omitted it
-/// defaults to `"comments"`.
-///
-/// # Example
-///
-/// ```json
-/// { "action": "list", "path": "/blog/post-1" }
-/// { "scope": "comments", "action": "create", "comment": { ... } }
-/// ```
+/// Sets the client's active path for broadcast filtering
+/// (comment events, view-count updates) without fetching data.
+#[derive(Debug, Deserialize)]
+pub struct WatchRequest {
+  /// The page path to watch (e.g. `/blog/post-1`).
+  pub path: String,
+}
+
 /// Request payload for an OpenGraph fetch over WebSocket.
 #[derive(Debug, Deserialize)]
 pub struct OpenGraphRequest {
@@ -52,13 +48,34 @@ pub struct OpenGraphRequest {
   pub url: String,
 }
 
+/// Incoming WebSocket message from the client.
+///
+/// The `"scope"` field selects which subsystem handles the message.
+/// If omitted it defaults to `"comments"`. View-count updates are
+/// pushed automatically for the client's active path (set via the
+/// `watch` scope).
+///
+/// # Examples
+///
+/// ```json
+/// { "scope": "watch", "path": "/blog/post-1" }
+/// { "scope": "comments", "action": "list", "path": "/blog/post-1" }
+/// { "action": "create", "comment": { ... } }
+/// ```
 #[derive(Debug)]
 pub enum ConnectRequest {
+  /// A comment CRUD operation.
   Comments(Box<CommentRequest>),
+  /// A page-view query (get / list).
   Views(ViewsRequest),
+  /// A health-check diagnostics request.
   Health(HealthOptions),
+  /// An OpenGraph metadata fetch.
   OpenGraph(OpenGraphRequest),
+  /// A music playback query.
   Playback(PlaybackRequest),
+  /// Sets the client's active path for broadcast filtering.
+  Watch(WatchRequest),
 }
 
 impl ConnectRequest {
@@ -72,6 +89,7 @@ impl ConnectRequest {
   /// | `"health"`   | [`Health`](Self::Health)       |
   /// | `"opengraph"`| [`OpenGraph`](Self::OpenGraph) |
   /// | `"views"`    | [`Views`](Self::Views)         |
+  /// | `"watch"`    | [`Watch`](Self::Watch)         |
   /// | `"comments"` | [`Comments`](Self::Comments)   |
   ///
   /// When `"scope"` is omitted, defaults to `"comments"`.
@@ -107,6 +125,11 @@ impl ConnectRequest {
         let req: PlaybackRequest = serde_json::from_value(value)
           .map_err(|e| format!("invalid playback request: {e}"))?;
         Ok(ConnectRequest::Playback(req))
+      }
+      Scope::Watch => {
+        let req: WatchRequest = serde_json::from_value(value)
+          .map_err(|e| format!("invalid watch request: {e}"))?;
+        Ok(ConnectRequest::Watch(req))
       }
       Scope::Comments => {
         let req: CommentRequest = serde_json::from_value(value)
@@ -161,9 +184,6 @@ impl ClientChannels {
   }
 }
 
-/// Outgoing WebSocket message sent back to the client.
-///
-/// Discriminated by the `"scope"` JSON field.
 /// Response payload for an OpenGraph fetch.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "action", rename_all = "lowercase")]
@@ -174,6 +194,10 @@ pub enum OpenGraphResponse {
   Error { message: String },
 }
 
+/// Outgoing WebSocket message sent back to the client.
+///
+/// Discriminated by the `"scope"` JSON field (lowercased variant
+/// name). Each variant wraps the scope-specific response payload.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "scope", rename_all = "lowercase")]
 pub enum ConnectResponse {
@@ -187,6 +211,27 @@ pub enum ConnectResponse {
   OpenGraph(OpenGraphResponse),
   /// A playback-scoped response.
   Playback(PlaybackResponse),
+  /// Acknowledgement of a watch scope request.
+  Watch(WatchResponse),
+}
+
+/// Response payload for a `watch` scope request.
+///
+/// Confirms that the server has registered the client's active
+/// path. Subsequent comment and view-count broadcast events will
+/// be filtered to this path.
+///
+/// # Example
+///
+/// ```json
+/// { "scope": "watch", "path": "/blog/post-1", "status": "success" }
+/// ```
+#[derive(Debug, Clone, Serialize)]
+pub struct WatchResponse {
+  /// The path that is now being watched.
+  pub path: String,
+  /// Always `"success"`.
+  pub status: &'static str,
 }
 
 #[cfg(test)]
