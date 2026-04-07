@@ -1,10 +1,16 @@
 //! Tests for mock DB implementations and test data
 //! factories.
 
-use super::*;
-use crate::controllers::{
-  comments::CommentOps,
-  views::{ViewsIncrement, ViewsOps},
+mod common;
+
+use common::{MockCommentStore, MockViewsStore, make_comment, make_page_views};
+use mongodb::bson::oid::ObjectId;
+use server::{
+  controllers::{
+    comments::CommentOps,
+    views::{ViewsIncrement, ViewsOps},
+  },
+  models::comments::CommentEdit,
 };
 
 // ---------------------------------------------------------------------------

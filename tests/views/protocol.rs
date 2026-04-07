@@ -1,7 +1,7 @@
 //! Tests for views request/response protocol
 //! serialization and deserialization.
 
-use super::*;
+use server::models::views::{PageViews, ViewsRequest, ViewsResponse};
 
 #[test]
 fn deserialize_views_request_list() {

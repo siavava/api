@@ -1,8 +1,9 @@
 //! Tests for comment request/response protocol
 //! serialization and deserialization.
 
-use super::*;
-use serde_json;
+use server::models::comments::{
+  BlogComment, CommentEdit, CommentRequest, CommentResponse,
+};
 
 fn minimal_comment_json() -> serde_json::Value {
   serde_json::json!({

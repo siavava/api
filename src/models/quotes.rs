@@ -33,6 +33,3 @@ static QUOTES: LazyLock<Vec<Quote>> = LazyLock::new(|| {
 pub fn get_all() -> &'static [Quote] {
   &QUOTES
 }
-
-#[cfg(test)]
-mod tests;

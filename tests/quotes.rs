@@ -1,7 +1,7 @@
 //! Tests for quote model serialization and the
 //! built-in quotes collection.
 
-use super::*;
+use server::models::quotes::{Quote, get_all};
 
 #[test]
 fn get_all_returns_non_empty() {

@@ -1,7 +1,8 @@
 //! Tests for location model serialization and
 //! ByteString conversion.
 
-use super::*;
+use bytestring::ByteString;
+use server::models::location::LocationData;
 
 #[test]
 fn constructor() {

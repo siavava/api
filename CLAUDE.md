@@ -11,7 +11,7 @@ Rust API backend (Actix-Web + MongoDB) supporting real-time features: page view 
 ```bash
 make build          # cargo build --release
 make dev            # cargo watch -x run (auto-reload)
-make test           # cargo test --offline --lib -- --color=always --nocapture
+make test           # cargo test --offline -- --color=always --nocapture
 make style-check    # cargo fmt --all -- --check
 make lint           # cargo clippy --all-targets --all-features -- -D warnings
 make docs           # cargo doc --no-deps

@@ -2,10 +2,18 @@
 //! request parsing, scope routing, and response
 //! serialization.
 
-use super::*;
-use serde_json;
+use server::models::{
+  comments::CommentResponse,
+  connect::{
+    ConnectRequest, ConnectResponse, OpenGraphResponse, WatchResponse,
+  },
+  health::HealthDiagnostics,
+  opengraph::OpenGraphData,
+  playback::PlaybackResponse,
+  views::ViewsResponse,
+};
 
-// ── ConnectRequest::parse ──────────────────────────
+// -- ConnectRequest::parse --
 
 #[test]
 fn parse_no_scope_defaults_to_comments() {
@@ -98,7 +106,7 @@ fn parse_playback_scope_last_played() {
   assert!(matches!(req, ConnectRequest::Playback(_)));
 }
 
-// ── Watch scope parsing ──────────────────────────────
+// -- Watch scope parsing --
 
 #[test]
 fn parse_watch_scope() {
@@ -159,7 +167,7 @@ fn parse_valid_scope_invalid_inner_payload() {
   );
 }
 
-// ── ConnectResponse serialization ──────────────────
+// -- ConnectResponse serialization --
 
 #[test]
 fn connect_response_comments_has_scope_tag() {
@@ -208,7 +216,7 @@ fn connect_response_opengraph_has_scope_tag() {
   assert_eq!(json["scope"], "opengraph");
 }
 
-// ── Watch response serialization ─────────────────────
+// -- Watch response serialization --
 
 #[test]
 fn connect_response_watch_has_scope_tag_and_fields() {
@@ -222,7 +230,7 @@ fn connect_response_watch_has_scope_tag_and_fields() {
   assert_eq!(json["status"], "success");
 }
 
-// ── OpenGraphResponse serialization ────────────────
+// -- OpenGraphResponse serialization --
 
 #[test]
 fn opengraph_response_data_has_action_tag() {

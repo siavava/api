@@ -40,9 +40,6 @@ pub mod models;
 pub mod protocol;
 pub mod routes;
 
-#[cfg(test)]
-mod testutil;
-
 /// Shared application state, passed to all route handlers via
 /// `actix_web::web::Data`.
 #[derive(Clone)]

@@ -31,8 +31,19 @@ fmt:
 	@cargo +nightly fmt
 
 TESTS = ""
+ifeq (test,$(firstword $(MAKECMDGOALS)))
+  ifneq (,$(filter verbose,$(MAKECMDGOALS)))
+    $(eval verbose:;@:)
+    TEST_VERBOSE := 1
+  endif
+endif
 test:
-	cargo test $(TESTS) --offline --lib -- --color=always --nocapture
+ifeq ($(TEST_VERBOSE),1)
+	@cargo test $(TESTS) --offline -- --color=always --nocapture
+else
+	@cargo test $(TESTS) --offline -- --color=always --nocapture 2>&1 \
+		| awk '/Running /{name=$$NF; gsub(/.*\//, "", name); sub(/-[0-9a-f]+\)$$/, "", name); gsub(/_/, "::", name); next} /^test result:/ && /[1-9][0-9]* passed/{printf "  %-24s%3d passed;  %3d failed;  %3d ignored;  %3d measured;  %3d filtered out;  finished in %s\n", name, $$4+0, $$6+0, $$8+0, $$10+0, $$12+0, $$17}'
+endif
 
 test-all: lint audit test
 

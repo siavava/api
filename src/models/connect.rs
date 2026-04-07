@@ -233,6 +233,3 @@ pub struct WatchResponse {
   /// Always `"success"`.
   pub status: &'static str,
 }
-
-#[cfg(test)]
-mod tests;

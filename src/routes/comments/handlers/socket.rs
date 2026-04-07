@@ -154,6 +154,3 @@ async fn handle_list(
     Err(e) => err(format!("failed to list comments: {e}")),
   }
 }
-
-#[cfg(test)]
-mod tests;

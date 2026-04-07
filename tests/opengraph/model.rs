@@ -1,7 +1,7 @@
 //! Tests for OpenGraph model serialization with
 //! camelCase field renaming.
 
-use super::*;
+use server::models::opengraph::OpenGraphData;
 
 fn sample() -> OpenGraphData {
   OpenGraphData {

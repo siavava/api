@@ -1,7 +1,7 @@
 //! Tests for health check model defaults and
 //! deserialization.
 
-use super::*;
+use server::models::health::HealthOptions;
 
 #[test]
 fn health_options_default() {

@@ -1,8 +1,7 @@
 //! Tests for comment model serialization and construction.
 
-use super::*;
 use mongodb::bson::oid::ObjectId;
-use serde_json;
+use server::models::comments::{BlogComment, PopulatedComment};
 
 fn sample_comment(id: Option<ObjectId>) -> BlogComment {
   BlogComment {

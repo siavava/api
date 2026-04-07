@@ -1,11 +1,11 @@
 //! Tests for comment WebSocket handler dispatch
 //! using mock DB.
 
-use super::*;
-use crate::{
+use crate::common::{MockCommentStore, make_comment};
+use server::{
   controllers::comments::CommentOps,
   models::comments::{CommentRequest, CommentResponse},
-  testutil::{MockCommentStore, make_comment},
+  routes::comments::handlers::socket::{handle_message, handle_request},
 };
 
 // ---- handle_message ---------------------------------------------------------
@@ -116,7 +116,7 @@ async fn edit_comment_returns_updated_and_broadcasts() {
 
   let req = CommentRequest::Edit {
     id,
-    edit: crate::models::comments::CommentEdit {
+    edit: server::models::comments::CommentEdit {
       text: Some("edited".into()),
       created_time: None,
     },
@@ -141,7 +141,7 @@ async fn edit_nonexistent_comment_returns_error() {
   let fake_id = mongodb::bson::oid::ObjectId::new().to_hex();
   let req = CommentRequest::Edit {
     id: fake_id,
-    edit: crate::models::comments::CommentEdit {
+    edit: server::models::comments::CommentEdit {
       text: Some("nope".into()),
       created_time: None,
     },

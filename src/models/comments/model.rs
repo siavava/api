@@ -140,6 +140,3 @@ impl PopulatedComment {
     }
   }
 }
-
-#[cfg(test)]
-mod tests;

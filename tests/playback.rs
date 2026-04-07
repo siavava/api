@@ -1,7 +1,7 @@
 //! Tests for playback model request/response
 //! serialization and optional field handling.
 
-use super::*;
+use server::models::playback::{PlaybackRequest, PlaybackResponse, Track};
 
 fn sample_track() -> Track {
   Track {

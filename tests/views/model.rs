@@ -1,8 +1,8 @@
 //! Tests for PageViews model: construction, equality,
 //! serde round-trips, and ByteString conversions.
 
-use super::*;
 use bytestring::ByteString;
+use server::models::views::PageViews;
 
 #[test]
 fn with_sets_count_to_zero() {

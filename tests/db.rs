@@ -1,6 +1,6 @@
 //! Tests for database helpers: ObjectId parsing and DB name.
 
-use super::*;
+use server::db::{DB_NAME, parse_oid, parse_oids};
 
 #[test]
 fn db_name_is_feed_dev_in_debug() {
