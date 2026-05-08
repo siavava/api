@@ -18,6 +18,7 @@ use mongodb::{
   bson::{doc, oid::ObjectId},
   error::Error as DbError,
 };
+use std::collections::HashMap;
 
 /// Trait abstracting comment DB operations for testability.
 #[allow(async_fn_in_trait)]
@@ -131,8 +132,11 @@ async fn update_and_populate(
   update: mongodb::bson::Document,
 ) -> Result<Option<PopulatedComment>, DbError> {
   let filter = doc! { "_id": id };
-  collection.update_one(filter.clone(), update).await?;
-  match collection.find_one(filter).await? {
+  let updated = collection
+    .find_one_and_update(filter, update)
+    .return_document(mongodb::options::ReturnDocument::After)
+    .await?;
+  match updated {
     Some(comment) => {
       Ok(Some(populate_replies(collection, comment, None).await?))
     }
@@ -311,11 +315,13 @@ pub async fn delete_comment(
 ///
 /// # Behavior
 ///
-/// Only comments where `reply_to` is `null` are returned at the top level;
-/// nested replies are resolved recursively via [`populate_replies`].
-/// Public comments (where `is_private` is `null` or `false`) are always
-/// returned. Private comments are only returned if `actor` matches
-/// the comment's `author`.
+/// Fetches every visible comment for the given `path` in a single Mongo
+/// query, then assembles the reply forest in memory using each comment's
+/// `reply_to` parent pointer. Public comments (where `is_private` is
+/// `null` or `false`) are always returned. Private comments are only
+/// returned if `actor` matches the comment's `author`. A comment whose
+/// parent was filtered out (e.g. a public reply under a private parent)
+/// becomes an orphan and is dropped.
 ///
 /// # Returns
 ///
@@ -327,11 +333,9 @@ pub async fn list_comments(
 ) -> Result<Vec<PopulatedComment>, DbError> {
   let collection = get_collection(client);
 
-  // Only fetch top-level comments that are either public or authored by the actor
   let filter = match actor {
     Some(username) => doc! {
       "path": path,
-      "reply_to": null,
       "$or": [
         { "is_private": { "$ne": true } },
         { "is_private": true, "author": username },
@@ -339,20 +343,61 @@ pub async fn list_comments(
     },
     None => doc! {
       "path": path,
-      "reply_to": null,
       "is_private": { "$ne": true },
     },
   };
-  let top_level: Vec<BlogComment> =
+  let all_comments: Vec<BlogComment> =
     collection.find(filter).await?.try_collect().await?;
 
-  let mut populated = Vec::with_capacity(top_level.len());
-  for comment in top_level {
-    let p = populate_replies(&collection, comment, actor).await?;
-    populated.push(p);
-  }
+  Ok(assemble_tree(all_comments))
+}
 
-  Ok(populated)
+/// Assembles a flat list of comments into a forest of populated trees,
+/// using each comment's `reply_to` field as the parent pointer.
+///
+/// Comments whose parent is absent from the input (filtered out by
+/// privacy, or dangling) are dropped.
+fn assemble_tree(comments: Vec<BlogComment>) -> Vec<PopulatedComment> {
+  let (roots, mut children_by_parent): (
+    Vec<BlogComment>,
+    HashMap<String, Vec<BlogComment>>,
+  ) = comments.into_iter().fold(
+    (Vec::new(), HashMap::new()),
+    |(mut roots, mut children_by_parent), comment| {
+      match comment.reply_to.as_ref() {
+        Some(parent_id) => children_by_parent
+          .entry(parent_id.clone())
+          .or_default()
+          .push(comment),
+        None => roots.push(comment),
+      }
+      (roots, children_by_parent)
+    },
+  );
+
+  roots
+    .into_iter()
+    .map(|root| build_node(root, &mut children_by_parent))
+    .collect()
+}
+
+/// Recursively attaches children from `children_by_parent` to `comment`,
+/// draining the map as it goes.
+fn build_node(
+  comment: BlogComment,
+  children_by_parent: &mut HashMap<String, Vec<BlogComment>>,
+) -> PopulatedComment {
+  let children = comment
+    .id
+    .and_then(|id| children_by_parent.remove(&id.to_hex()))
+    .unwrap_or_default();
+
+  let populated_children: Vec<PopulatedComment> = children
+    .into_iter()
+    .map(|c| build_node(c, children_by_parent))
+    .collect();
+
+  PopulatedComment::from_comment(comment, populated_children)
 }
 
 /// Recursively fetches and nests a comment's reply tree.
