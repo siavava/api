@@ -15,6 +15,10 @@ static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
     .expect("failed to build HTTP client")
 });
 
+/// Hard cap on bytes read from the upstream response. OpenGraph tags
+/// live in `<head>`, so 2 MiB is more than enough for any real page.
+const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
+
 /// Pre-parsed CSS selectors for OpenGraph metadata extraction.
 struct Selectors {
   og_title: Selector,
@@ -49,7 +53,7 @@ pub async fn fetch_opengraph(
     Url::parse(target_url).map_err(|e| format!("Invalid URL: {e}"))?;
   let hostname = parsed.host_str().map(String::from);
 
-  let response = HTTP_CLIENT
+  let mut response = HTTP_CLIENT
     .get(target_url)
     .send()
     .await
@@ -57,11 +61,29 @@ pub async fn fetch_opengraph(
 
   let final_url = response.url().to_string();
 
-  let html_text = response
-    .text()
-    .await
-    .map_err(|e| format!("Failed to read response body: {e}"))?;
+  if let Some(len) = response.content_length()
+    && len as usize > MAX_HTML_BYTES
+  {
+    return Err(format!(
+      "Response too large: {len} bytes (max {MAX_HTML_BYTES})"
+    ));
+  }
 
+  let mut buf: Vec<u8> = Vec::with_capacity(64 * 1024);
+  while let Some(chunk) = response
+    .chunk()
+    .await
+    .map_err(|e| format!("Failed to read response body: {e}"))?
+  {
+    let remaining = MAX_HTML_BYTES.saturating_sub(buf.len());
+    if chunk.len() >= remaining {
+      buf.extend_from_slice(&chunk[..remaining]);
+      break;
+    }
+    buf.extend_from_slice(&chunk);
+  }
+
+  let html_text = String::from_utf8_lossy(&buf);
   let document = Html::parse_document(&html_text);
 
   let s = &*SELECTORS;

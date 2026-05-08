@@ -67,6 +67,8 @@ async fn main() -> Result<()> {
 
   let server_api = ServerApi::builder().version(ServerApiVersion::V1).build();
   client_options.server_api = Some(server_api);
+  client_options.min_pool_size = Some(5);
+  client_options.max_pool_size = Some(50);
 
   let db_client = Client::with_options(client_options).unwrap();
 
