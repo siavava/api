@@ -18,7 +18,7 @@ use mongodb::{
   bson::{doc, oid::ObjectId},
   error::Error as DbError,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Trait abstracting comment DB operations for testability.
 #[allow(async_fn_in_trait)]
@@ -352,52 +352,58 @@ pub async fn list_comments(
   Ok(assemble_tree(all_comments))
 }
 
-/// Assembles a flat list of comments into a forest of populated trees,
-/// using each comment's `reply_to` field as the parent pointer.
+/// Assembles a flat list of comments into a forest of populated trees.
 ///
-/// Comments whose parent is absent from the input (filtered out by
-/// privacy, or dangling) are dropped.
+/// Tree shape is reconstructed from each parent's `replies: Vec<String>`
+/// array (parent → child pointers), matching the original recursive
+/// behavior. A comment is a root iff (a) no other visible comment lists
+/// it in its `replies` array, AND (b) its own `reply_to` is `None`. The
+/// first condition handles legacy data where a child's `reply_to` is
+/// missing or out of sync with the parent's `replies`. The second hides
+/// children whose parent was filtered out by the privacy predicate.
+/// Replies referenced but absent from the input are silently dropped.
 fn assemble_tree(comments: Vec<BlogComment>) -> Vec<PopulatedComment> {
-  let (roots, mut children_by_parent): (
-    Vec<BlogComment>,
-    HashMap<String, Vec<BlogComment>>,
-  ) = comments.into_iter().fold(
-    (Vec::new(), HashMap::new()),
-    |(mut roots, mut children_by_parent), comment| {
-      match comment.reply_to.as_ref() {
-        Some(parent_id) => children_by_parent
-          .entry(parent_id.clone())
-          .or_default()
-          .push(comment),
-        None => roots.push(comment),
-      }
-      (roots, children_by_parent)
-    },
-  );
+  let referenced: HashSet<String> = comments
+    .iter()
+    .flat_map(|c| c.replies.iter().cloned())
+    .collect();
+
+  let (roots, others): (Vec<BlogComment>, Vec<BlogComment>) =
+    comments.into_iter().partition(|c| {
+      c.reply_to.is_none()
+        && c
+          .id
+          .as_ref()
+          .is_none_or(|id| !referenced.contains(&id.to_hex()))
+    });
+
+  let mut by_id: HashMap<String, BlogComment> = others
+    .into_iter()
+    .filter_map(|c| c.id.map(|id| (id.to_hex(), c)))
+    .collect();
 
   roots
     .into_iter()
-    .map(|root| build_node(root, &mut children_by_parent))
+    .map(|root| build_node(root, &mut by_id))
     .collect()
 }
 
-/// Recursively attaches children from `children_by_parent` to `comment`,
-/// draining the map as it goes.
+/// Recursively resolves a comment's reply tree by walking its `replies`
+/// id list, draining `by_id` as it goes so each reply is moved exactly once.
 fn build_node(
-  comment: BlogComment,
-  children_by_parent: &mut HashMap<String, Vec<BlogComment>>,
+  mut comment: BlogComment,
+  by_id: &mut HashMap<String, BlogComment>,
 ) -> PopulatedComment {
-  let children = comment
-    .id
-    .and_then(|id| children_by_parent.remove(&id.to_hex()))
-    .unwrap_or_default();
-
-  let populated_children: Vec<PopulatedComment> = children
-    .into_iter()
-    .map(|c| build_node(c, children_by_parent))
+  let reply_ids = std::mem::take(&mut comment.replies);
+  let children: Vec<BlogComment> = reply_ids
+    .iter()
+    .filter_map(|rid| by_id.remove(rid))
     .collect();
-
-  PopulatedComment::from_comment(comment, populated_children)
+  let populated_replies: Vec<PopulatedComment> = children
+    .into_iter()
+    .map(|child| build_node(child, by_id))
+    .collect();
+  PopulatedComment::from_comment(comment, populated_replies)
 }
 
 /// Recursively fetches and nests a comment's reply tree.
@@ -462,4 +468,95 @@ fn populate_replies<'a>(
 
     Ok(PopulatedComment::from_comment(comment, populated_replies))
   })
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn comment(
+    text: &str,
+    reply_to: Option<&ObjectId>,
+    replies: &[&ObjectId],
+  ) -> BlogComment {
+    BlogComment {
+      id: Some(ObjectId::new()),
+      text: text.into(),
+      markup: format!("<p>{text}</p>"),
+      author: "alice".into(),
+      created_time: "2025-01-01T00:00:00Z".into(),
+      edited_time: None,
+      path: "/blog/a".into(),
+      likes: 0,
+      is_private: None,
+      reply_to: reply_to.map(|id| id.to_hex()),
+      replies: replies.iter().map(|id| id.to_hex()).collect(),
+    }
+  }
+
+  #[test]
+  fn nests_via_parent_replies_array() {
+    let parent = comment("parent", None, &[]);
+    let child = comment("child", parent.id.as_ref(), &[]);
+    let parent = BlogComment {
+      replies: vec![child.id.unwrap().to_hex()],
+      ..parent
+    };
+
+    let tree = assemble_tree(vec![parent, child]);
+    assert_eq!(tree.len(), 1);
+    assert_eq!(tree[0].text, "parent");
+    assert_eq!(tree[0].replies.len(), 1);
+    assert_eq!(tree[0].replies[0].text, "child");
+  }
+
+  // Regression: a child whose `reply_to` field is missing but is still
+  // referenced by the parent's `replies` array must still be nested.
+  // Earlier implementation that grouped by `reply_to` lost these.
+  #[test]
+  fn nests_when_child_reply_to_missing_but_parent_replies_lists_it() {
+    let child = comment("child", None, &[]); // reply_to: None — inconsistent
+    let parent = comment("parent", None, &[child.id.as_ref().unwrap()]);
+
+    let tree = assemble_tree(vec![parent, child]);
+    assert_eq!(tree.len(), 1, "only parent should be a root");
+    assert_eq!(tree[0].text, "parent");
+    assert_eq!(tree[0].replies.len(), 1);
+    assert_eq!(tree[0].replies[0].text, "child");
+  }
+
+  #[test]
+  fn nests_three_levels_deep() {
+    let grandchild = comment("grandchild", None, &[]);
+    let child = comment("child", None, &[grandchild.id.as_ref().unwrap()]);
+    let parent = comment("parent", None, &[child.id.as_ref().unwrap()]);
+
+    let tree = assemble_tree(vec![parent, child, grandchild]);
+    assert_eq!(tree.len(), 1);
+    assert_eq!(tree[0].replies.len(), 1);
+    assert_eq!(tree[0].replies[0].replies.len(), 1);
+    assert_eq!(tree[0].replies[0].replies[0].text, "grandchild");
+  }
+
+  #[test]
+  fn drops_dangling_reply_id_silently() {
+    let bogus_id = ObjectId::new();
+    let parent = comment("parent", None, &[&bogus_id]);
+
+    let tree = assemble_tree(vec![parent]);
+    assert_eq!(tree.len(), 1);
+    assert!(
+      tree[0].replies.is_empty(),
+      "child filtered out by privacy or missing should not break the parent",
+    );
+  }
+
+  #[test]
+  fn preserves_multiple_roots() {
+    let a = comment("a", None, &[]);
+    let b = comment("b", None, &[]);
+
+    let tree = assemble_tree(vec![a, b]);
+    assert_eq!(tree.len(), 2);
+  }
 }
