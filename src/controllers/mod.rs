@@ -21,6 +21,8 @@
 pub mod comments;
 /// Location tracking (last known + history).
 pub mod location;
+/// Owner-published "now" status slots with TTL.
+pub mod now;
 /// OpenGraph metadata fetching and parsing.
 pub mod opengraph;
 /// Spotify playback data.

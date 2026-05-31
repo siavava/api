@@ -10,6 +10,7 @@
 use super::{
   comments::{CommentEvent, CommentRequest, CommentResponse},
   health::{HealthDiagnostics, HealthOptions},
+  now::{NowEvent, NowRequest, NowResponse},
   opengraph::OpenGraphData,
   playback::{PlaybackRequest, PlaybackResponse},
   views::{ViewEvent, ViewsRequest, ViewsResponse},
@@ -23,6 +24,7 @@ use tokio::sync::broadcast;
 #[serde(rename_all = "lowercase")]
 pub enum Scope {
   Health,
+  Now,
   OpenGraph,
   Playback,
   Views,
@@ -70,6 +72,8 @@ pub enum ConnectRequest {
   Views(ViewsRequest),
   /// A health-check diagnostics request.
   Health(HealthOptions),
+  /// A "now"-slot query or mutation.
+  Now(NowRequest),
   /// An OpenGraph metadata fetch.
   OpenGraph(OpenGraphRequest),
   /// A music playback query.
@@ -111,6 +115,11 @@ impl ConnectRequest {
           serde_json::from_value(value).unwrap_or_default();
         Ok(ConnectRequest::Health(options))
       }
+      Scope::Now => {
+        let req: NowRequest = serde_json::from_value(value)
+          .map_err(|e| format!("invalid now request: {e}"))?;
+        Ok(ConnectRequest::Now(req))
+      }
       Scope::OpenGraph => {
         let req: OpenGraphRequest = serde_json::from_value(value)
           .map_err(|e| format!("invalid opengraph request: {e}"))?;
@@ -146,6 +155,7 @@ pub struct EventSenders {
   pub comments: broadcast::Sender<CommentEvent>,
   pub views: broadcast::Sender<ViewEvent>,
   pub active_count: broadcast::Sender<usize>,
+  pub now: broadcast::Sender<NowEvent>,
 }
 
 /// Per-client broadcast receivers.
@@ -154,6 +164,7 @@ pub struct EventReceivers {
   pub comments: broadcast::Receiver<CommentEvent>,
   pub views: broadcast::Receiver<ViewEvent>,
   pub active_count: broadcast::Receiver<usize>,
+  pub now: broadcast::Receiver<NowEvent>,
 }
 
 /// Grouped sender/receiver handles for a single WebSocket client.
@@ -174,11 +185,13 @@ impl ClientChannels {
       comments: state.comment_events.clone(),
       views: state.view_events.clone(),
       active_count: state.active_count_events.clone(),
+      now: state.now_events.clone(),
     };
     let receivers = EventReceivers {
       comments: senders.comments.subscribe(),
       views: senders.views.subscribe(),
       active_count: senders.active_count.subscribe(),
+      now: senders.now.subscribe(),
     };
     Self { senders, receivers }
   }
@@ -207,6 +220,8 @@ pub enum ConnectResponse {
   Views(ViewsResponse),
   /// A health-check diagnostics response.
   Health(HealthDiagnostics),
+  /// A "now"-scoped response.
+  Now(NowResponse),
   /// An OpenGraph metadata response.
   OpenGraph(OpenGraphResponse),
   /// A playback-scoped response.

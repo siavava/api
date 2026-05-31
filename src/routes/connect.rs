@@ -12,13 +12,14 @@
 
 use crate::{
   AppState,
-  controllers::{opengraph, views},
+  controllers::{now as now_handlers, opengraph, views},
   models::{
     comments::{CommentEvent, CommentResponse},
     connect::{
       ClientChannels, ConnectRequest, ConnectResponse, OpenGraphResponse,
     },
     health::HealthDiagnostics,
+    now::NowEvent,
     playback::PlaybackResponse,
     views::ViewsResponse,
   },
@@ -90,6 +91,7 @@ async fn ws_event_loop(
     mut receivers,
   } = channels;
 
+  let now_tx = senders.now.clone();
   let mut active_path: Option<String> = None;
 
   // Channel for receiving results from spawned background tasks
@@ -111,13 +113,21 @@ async fn ws_event_loop(
         let prev_path = active_path.clone();
         if !handle_ws_frame(
           msg, &app_state, &mut session,
-          &senders.comments, &mut active_path, &deferred_tx,
+          &senders.comments, &now_tx, &mut active_path, &deferred_tx,
         ).await {
           break;
         }
 
         if active_path != prev_path {
           views::track_page_view(&app_state.db_client, &senders, active_path.as_deref()).await;
+        }
+      }
+
+      event = receivers.now.recv() => {
+        let Ok(event) = event else { continue };
+        let response = ConnectResponse::Now(event.response);
+        if !socket::send_json(&mut session, &response).await {
+          break;
         }
       }
 
@@ -172,6 +182,7 @@ async fn handle_ws_frame(
   app_state: &AppState,
   session: &mut Session,
   comment_tx: &broadcast::Sender<CommentEvent>,
+  now_tx: &broadcast::Sender<NowEvent>,
   active_path: &mut Option<String>,
   deferred_tx: &tokio::sync::mpsc::Sender<ConnectResponse>,
 ) -> bool {
@@ -208,6 +219,22 @@ async fn handle_ws_frame(
             HealthDiagnostics::collect(app_state, &options).await;
           let response = ConnectResponse::Health(diagnostics);
           socket::send_json(session, &response).await
+        }
+        ConnectRequest::Now(req) => {
+          let (response, broadcast_event) =
+            now_handlers::handle_request(db_client, req).await;
+
+          if broadcast_event {
+            let _ = now_tx.send(NowEvent {
+              response: response.clone(),
+            });
+            // The broadcast loop will deliver the response to this
+            // session along with all others.
+            true
+          } else {
+            let wrapped = ConnectResponse::Now(response);
+            socket::send_json(session, &wrapped).await
+          }
         }
         ConnectRequest::Playback(req) => {
           let spotify = app_state.spotify.clone();

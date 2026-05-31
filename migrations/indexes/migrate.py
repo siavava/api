@@ -39,6 +39,9 @@ class IndexSpec:
   keys: list[tuple[str, int]]
   rationale: str
   unique: bool = False
+  # MongoDB TTL: documents expire `expire_after_seconds` past the indexed
+  # field's value. Only valid on a single-field index over a date column.
+  expire_after_seconds: int | None = None
 
 
 INDEXES: list[IndexSpec] = [
@@ -67,6 +70,20 @@ INDEXES: list[IndexSpec] = [
     keys=[("city", ASCENDING), ("state", ASCENDING)],
     rationale="update_location_history upsert filter",
   ),
+  IndexSpec(
+    collection="now",
+    name="key_1",
+    keys=[("key", ASCENDING)],
+    unique=True,
+    rationale="one document per slot key — set_now upsert filter",
+  ),
+  IndexSpec(
+    collection="now",
+    name="expires_at_1",
+    keys=[("expires_at", ASCENDING)],
+    expire_after_seconds=0,
+    rationale="TTL — Mongo sweeps documents at expires_at",
+  ),
 ]
 
 
@@ -87,7 +104,11 @@ def migrate(db_name: str, mongo_uri: str, *, apply: bool = False) -> None:
     key_repr = ", ".join(
       f"{k}:{'asc' if v == ASCENDING else 'desc'}" for k, v in spec.keys
     )
-    flags = " unique" if spec.unique else ""
+    flags = ""
+    if spec.unique:
+      flags += " unique"
+    if spec.expire_after_seconds is not None:
+      flags += f" ttl={spec.expire_after_seconds}s"
     print(f"  {spec.collection}.{spec.name}  [{key_repr}]{flags}")
     print(f"    why: {spec.rationale}")
 
@@ -97,9 +118,10 @@ def migrate(db_name: str, mongo_uri: str, *, apply: bool = False) -> None:
 
   print()
   for spec in INDEXES:
-    result = db[spec.collection].create_index(
-      spec.keys, name=spec.name, unique=spec.unique
-    )
+    kwargs: dict[str, object] = {"name": spec.name, "unique": spec.unique}
+    if spec.expire_after_seconds is not None:
+      kwargs["expireAfterSeconds"] = spec.expire_after_seconds
+    result = db[spec.collection].create_index(spec.keys, **kwargs)
     print(f"  ensured {spec.collection}.{spec.name} -> {result}")
 
   print("\nDone.")

@@ -22,6 +22,8 @@ pub mod connect;
 pub mod health;
 /// Data model for location tracking.
 pub mod location;
+/// Data models for owner-published "now" status slots.
+pub mod now;
 /// Data model for OpenGraph metadata.
 pub mod opengraph;
 /// Data models for Spotify playback.

@@ -26,6 +26,7 @@ use crate::{
   controllers::{playback::SpotifyClient, views},
   models::{
     comments::CommentEvent,
+    now::NowEvent,
     views::{PageViews, ViewEvent},
   },
 };
@@ -59,6 +60,9 @@ pub struct AppState {
   /// Broadcast channel for active-client-count changes.
   /// Sent to ALL clients regardless of active path.
   pub active_count_events: broadcast::Sender<usize>,
+  /// Broadcast channel for "now"-slot mutations.
+  /// Sent to ALL clients so the dynamic island updates live.
+  pub now_events: broadcast::Sender<NowEvent>,
   /// Spotify API client for playback data.
   /// `None` if Spotify credentials are not configured.
   pub spotify: Option<Arc<SpotifyClient>>,
@@ -73,6 +77,7 @@ impl AppState {
     let (comment_events, _) = broadcast::channel::<CommentEvent>(256);
     let (view_events, _) = broadcast::channel::<ViewEvent>(256);
     let (active_count_events, _) = broadcast::channel::<usize>(256);
+    let (now_events, _) = broadcast::channel::<NowEvent>(64);
 
     let spotify = SpotifyClient::from_env().map(Arc::new);
 
@@ -83,6 +88,7 @@ impl AppState {
       view_events,
       active_clients: Arc::new(AtomicUsize::new(0)),
       active_count_events,
+      now_events,
       spotify,
     }
   }
