@@ -28,6 +28,8 @@ mod opengraph;
 pub mod playback;
 /// REST + HTML endpoints for quotes.
 mod quotes;
+/// REST auth + WebSocket endpoints for the study network. Isolated from blog.
+mod study;
 /// REST + SSE endpoints for page view counts.
 mod views;
 
@@ -41,4 +43,5 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   comments::register(cfg);
   connect::register(cfg);
   opengraph::register(cfg);
+  study::register(cfg);
 }

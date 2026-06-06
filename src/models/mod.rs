@@ -30,5 +30,7 @@ pub mod opengraph;
 pub mod playback;
 /// Data model for quotes.
 pub mod quotes;
+/// Data models for the study network (users, notes, annotations, progress).
+pub mod study;
 /// Data model for page view counts.
 pub mod views;

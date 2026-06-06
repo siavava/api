@@ -66,6 +66,14 @@ pub struct AppState {
   /// Spotify API client for playback data.
   /// `None` if Spotify credentials are not configured.
   pub spotify: Option<Arc<SpotifyClient>>,
+  /// Broadcast channel for study-network mutations (notes, annotations,
+  /// progress). Events carry the owning `user_id`; each authenticated study
+  /// WebSocket only forwards events matching its own user. Fully isolated
+  /// from the blog scopes above.
+  pub study_events: broadcast::Sender<crate::models::study::StudyEvent>,
+  /// Secret used to sign/verify study auth JWTs. Loaded from `JWT_SECRET`
+  /// (falls back to a dev-only default).
+  pub jwt_secret: Arc<String>,
 }
 
 impl AppState {
@@ -81,6 +89,13 @@ impl AppState {
 
     let spotify = SpotifyClient::from_env().map(Arc::new);
 
+    let (study_events, _) =
+      broadcast::channel::<crate::models::study::StudyEvent>(256);
+    let jwt_secret = Arc::new(
+      std::env::var("JWT_SECRET")
+        .unwrap_or_else(|_| "dev-only-insecure-study-secret".to_string()),
+    );
+
     Self {
       db_client,
       view_events_handler,
@@ -90,6 +105,8 @@ impl AppState {
       active_count_events,
       now_events,
       spotify,
+      study_events,
+      jwt_secret,
     }
   }
 }

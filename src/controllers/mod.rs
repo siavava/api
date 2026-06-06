@@ -27,5 +27,7 @@ pub mod now;
 pub mod opengraph;
 /// Spotify playback data.
 pub mod playback;
+/// Study network: auth (Argon2 + JWT), notes, annotations, progress.
+pub mod study;
 /// Page view counting and retrieval.
 pub mod views;
