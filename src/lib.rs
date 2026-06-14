@@ -71,6 +71,12 @@ pub struct AppState {
   /// WebSocket only forwards events matching its own user. Fully isolated
   /// from the blog scopes above.
   pub study_events: broadcast::Sender<crate::models::study::StudyEvent>,
+  /// Broadcast channel for public-content mutations, keyed by section path.
+  /// Every study WebSocket (authed or anonymous) forwards events whose
+  /// `section_path` matches the section it last subscribed to — this is how
+  /// public notes/replies reach other users and logged-out viewers live.
+  pub study_section_events:
+    broadcast::Sender<crate::models::study::StudySectionEvent>,
   /// Secret used to sign/verify study auth JWTs. Loaded from `JWT_SECRET`
   /// (falls back to a dev-only default).
   pub jwt_secret: Arc<String>,
@@ -91,6 +97,8 @@ impl AppState {
 
     let (study_events, _) =
       broadcast::channel::<crate::models::study::StudyEvent>(256);
+    let (study_section_events, _) =
+      broadcast::channel::<crate::models::study::StudySectionEvent>(1024);
     let jwt_secret = Arc::new(
       std::env::var("JWT_SECRET")
         .unwrap_or_else(|_| "dev-only-insecure-study-secret".to_string()),
@@ -106,6 +114,7 @@ impl AppState {
       now_events,
       spotify,
       study_events,
+      study_section_events,
       jwt_secret,
     }
   }

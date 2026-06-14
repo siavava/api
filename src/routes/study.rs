@@ -18,7 +18,7 @@ use crate::{
   controllers::study,
   models::study::{
     AuthResponse, LoginRequest, PublicUser, SignupRequest, StudyEvent,
-    StudyRequest, StudyResponse,
+    StudyRequest, StudyResponse, StudySectionEvent,
   },
   protocol::socket,
 };
@@ -30,6 +30,7 @@ use actix_web::{
 use actix_ws::{Message, Session};
 use futures_util::StreamExt;
 use serde::Deserialize;
+use tokio::sync::broadcast::error::RecvError;
 use tracing::info;
 
 /// Registers the `/study` scope.
@@ -106,7 +107,12 @@ struct ConnectQuery {
   token: Option<String>,
 }
 
-/// `GET /study/connect/?token=JWT` — authenticated study WebSocket.
+/// `GET /study/connect/[?token=JWT]` — study WebSocket.
+///
+/// The token is **optional**: an anonymous connection may read public content
+/// and subscribe to a section's live stream, but cannot mutate. A valid token
+/// upgrades the same connection to an authed session (`user_id`/`username`
+/// recorded server-side). Empty strings mark an anonymous session.
 #[get("/connect/")]
 async fn connect_ws(
   req: HttpRequest,
@@ -115,30 +121,38 @@ async fn connect_ws(
   app_state: Data<AppState>,
 ) -> Result<HttpResponse, ActixError> {
   let token = query.token.clone().unwrap_or_default();
-  let claims = match study::verify_token(&app_state.jwt_secret, &token) {
-    Ok(c) => c,
-    Err(_) => return Ok(HttpResponse::Unauthorized().json(err("invalid token"))),
-  };
+  let (user_id, username) =
+    match study::verify_token(&app_state.jwt_secret, &token) {
+      Ok(c) => (c.sub, c.username),
+      Err(_) => (String::new(), String::new()),
+    };
 
   let (response, session, msg_stream) = actix_ws::handle(&req, stream)?;
   actix_web::rt::spawn(study_event_loop(
     session,
     msg_stream,
     app_state.into_inner().as_ref().clone(),
-    claims.sub,
+    user_id,
+    username,
   ));
   Ok(response)
 }
 
-/// Per-client event loop. Multiplexes incoming requests with this user's
-/// mutation broadcasts (so a note saved in one tab appears live in another).
+/// Per-client event loop. Multiplexes incoming requests with two broadcast
+/// streams: the per-user channel (this user's own sessions stay in sync) and
+/// the section channel (public mutations reach everyone — authed or anonymous —
+/// viewing the section this connection last subscribed to). `user_id` is empty
+/// for anonymous sessions.
 async fn study_event_loop(
   mut session: Session,
   mut msg_stream: actix_ws::MessageStream,
   app_state: AppState,
   user_id: String,
+  username: String,
 ) {
   let mut events = app_state.study_events.subscribe();
+  let mut section_events = app_state.study_section_events.subscribe();
+  let mut current_section: Option<String> = None;
 
   loop {
     tokio::select! {
@@ -146,7 +160,10 @@ async fn study_event_loop(
         let Some(Ok(msg)) = ws_msg else { break };
         match msg {
           Message::Text(text) => {
-            if !handle_text(&app_state, &user_id, &text, &mut session).await {
+            if !handle_text(
+              &app_state, &user_id, &username, &text,
+              &mut session, &mut current_section,
+            ).await {
               break;
             }
           }
@@ -162,9 +179,27 @@ async fn study_event_loop(
       }
 
       event = events.recv() => {
-        let Ok(StudyEvent { user_id: owner, response }) = event else { continue };
-        if owner != user_id { continue; }
-        if !socket::send_json(&mut session, &response).await { break; }
+        match event {
+          Ok(StudyEvent { user_id: owner, response }) => {
+            if owner != user_id { continue; }
+            if !socket::send_json(&mut session, &response).await { break; }
+          }
+          Err(RecvError::Lagged(_)) => continue,
+          Err(RecvError::Closed) => break,
+        }
+      }
+
+      sect = section_events.recv() => {
+        match sect {
+          Ok(StudySectionEvent { section_path, response }) => {
+            if current_section.as_deref() != Some(section_path.as_str()) {
+              continue;
+            }
+            if !socket::send_json(&mut session, &response).await { break; }
+          }
+          Err(RecvError::Lagged(_)) => continue,
+          Err(RecvError::Closed) => break,
+        }
       }
     }
   }
@@ -179,12 +214,28 @@ fn broadcast(app_state: &AppState, user_id: &str, response: StudyResponse) {
   });
 }
 
+/// Broadcasts a public-content mutation to every session viewing `section_path`.
+fn broadcast_section(
+  app_state: &AppState,
+  section_path: &str,
+  response: StudyResponse,
+) {
+  let _ = app_state.study_section_events.send(StudySectionEvent {
+    section_path: section_path.to_string(),
+    response,
+  });
+}
+
 /// Handles one text frame. Returns `false` if the connection should close.
+/// `user_id`/`username` are empty for anonymous sessions; mutations are
+/// rejected in that case.
 async fn handle_text(
   app_state: &AppState,
   user_id: &str,
+  username: &str,
   text: &str,
   session: &mut Session,
+  current_section: &mut Option<String>,
 ) -> bool {
   let db = &app_state.db_client;
   let request = match StudyRequest::parse(text) {
@@ -193,6 +244,25 @@ async fn handle_text(
       return socket::send_json(session, &StudyResponse::Error { message }).await;
     }
   };
+
+  let needs_auth = matches!(
+    request,
+    StudyRequest::SaveNote { .. }
+      | StudyRequest::DeleteNote { .. }
+      | StudyRequest::SaveAnnotation { .. }
+      | StudyRequest::DeleteAnnotation { .. }
+      | StudyRequest::SaveProgress { .. }
+      | StudyRequest::SaveReply { .. }
+      | StudyRequest::DeleteReply { .. }
+      | StudyRequest::LikeReply { .. }
+  );
+  if needs_auth && user_id.is_empty() {
+    return socket::send_json(
+      session,
+      &StudyResponse::Error { message: "authentication required".into() },
+    )
+    .await;
+  }
 
   match request {
     // ---- reads: reply directly to the requesting session ----
@@ -218,11 +288,42 @@ async fn handle_text(
       socket::send_json(session, &resp).await
     }
 
-    // ---- mutations: broadcast so all the user's sessions stay in sync ----
+    StudyRequest::SubscribeSection { section_path } => {
+      *current_section = Some(section_path.clone());
+      let resp = match study::list_public_section(db, &section_path).await {
+        Ok((annotations, notes, replies)) => StudyResponse::SectionPublic {
+          section_path,
+          annotations,
+          notes,
+          replies,
+        },
+        Err(message) => StudyResponse::Error { message },
+      };
+      socket::send_json(session, &resp).await
+    }
+
     StudyRequest::SaveNote { note } => {
-      match study::save_note(db, user_id, note).await {
-        Ok(note) => {
-          broadcast(app_state, user_id, StudyResponse::NoteSaved { note });
+      match study::save_note(db, user_id, username, note).await {
+        Ok((note, was_public)) => {
+          let id_hex = note.id.map(|o| o.to_hex()).unwrap_or_default();
+          let section = note.section_path.clone();
+          let is_public = note.public;
+          broadcast(
+            app_state,
+            user_id,
+            StudyResponse::NoteSaved { note: note.clone() },
+          );
+          if let Some(path) = section {
+            if is_public {
+              broadcast_section(
+                app_state, &path, StudyResponse::NoteSaved { note },
+              );
+            } else if was_public {
+              broadcast_section(
+                app_state, &path, StudyResponse::NoteDeleted { id: id_hex },
+              );
+            }
+          }
           true
         }
         Err(message) => {
@@ -232,8 +333,15 @@ async fn handle_text(
     }
     StudyRequest::DeleteNote { id } => {
       match study::delete_note(db, user_id, &id).await {
-        Ok(()) => {
-          broadcast(app_state, user_id, StudyResponse::NoteDeleted { id });
+        Ok(meta) => {
+          broadcast(
+            app_state, user_id, StudyResponse::NoteDeleted { id: id.clone() },
+          );
+          if let Some((true, Some(path))) = meta {
+            broadcast_section(
+              app_state, &path, StudyResponse::NoteDeleted { id },
+            );
+          }
           true
         }
         Err(message) => {
@@ -242,13 +350,27 @@ async fn handle_text(
       }
     }
     StudyRequest::SaveAnnotation { annotation } => {
-      match study::save_annotation(db, user_id, annotation).await {
-        Ok(annotation) => {
+      match study::save_annotation(db, user_id, username, annotation).await {
+        Ok((annotation, was_public)) => {
+          let id_hex = annotation.id.map(|o| o.to_hex()).unwrap_or_default();
+          let section = annotation.section_path.clone();
+          let is_public = annotation.public;
           broadcast(
             app_state,
             user_id,
-            StudyResponse::AnnotationSaved { annotation },
+            StudyResponse::AnnotationSaved { annotation: annotation.clone() },
           );
+          if is_public {
+            broadcast_section(
+              app_state, &section,
+              StudyResponse::AnnotationSaved { annotation },
+            );
+          } else if was_public {
+            broadcast_section(
+              app_state, &section,
+              StudyResponse::AnnotationDeleted { id: id_hex },
+            );
+          }
           true
         }
         Err(message) => {
@@ -258,8 +380,16 @@ async fn handle_text(
     }
     StudyRequest::DeleteAnnotation { id } => {
       match study::delete_annotation(db, user_id, &id).await {
-        Ok(()) => {
-          broadcast(app_state, user_id, StudyResponse::AnnotationDeleted { id });
+        Ok(meta) => {
+          broadcast(
+            app_state, user_id,
+            StudyResponse::AnnotationDeleted { id: id.clone() },
+          );
+          if let Some((true, path)) = meta {
+            broadcast_section(
+              app_state, &path, StudyResponse::AnnotationDeleted { id },
+            );
+          }
           true
         }
         Err(message) => {
@@ -271,6 +401,52 @@ async fn handle_text(
       match study::save_progress(db, user_id, progress).await {
         Ok(item) => {
           broadcast(app_state, user_id, StudyResponse::ProgressSaved { item });
+          true
+        }
+        Err(message) => {
+          socket::send_json(session, &StudyResponse::Error { message }).await
+        }
+      }
+    }
+
+    StudyRequest::SaveReply { reply } => {
+      match study::save_reply(db, user_id, username, reply).await {
+        Ok(reply) => {
+          let path = reply.section_path.clone();
+          broadcast_section(
+            app_state, &path, StudyResponse::ReplySaved { reply },
+          );
+          true
+        }
+        Err(message) => {
+          socket::send_json(session, &StudyResponse::Error { message }).await
+        }
+      }
+    }
+    StudyRequest::DeleteReply { id } => {
+      match study::delete_reply(db, user_id, &id).await {
+        Ok(section_path) => {
+          broadcast_section(
+            app_state, &section_path,
+            StudyResponse::ReplyDeleted {
+              id,
+              section_path: section_path.clone(),
+            },
+          );
+          true
+        }
+        Err(message) => {
+          socket::send_json(session, &StudyResponse::Error { message }).await
+        }
+      }
+    }
+    StudyRequest::LikeReply { id } => {
+      match study::like_reply(db, user_id, &id).await {
+        Ok(reply) => {
+          let path = reply.section_path.clone();
+          broadcast_section(
+            app_state, &path, StudyResponse::ReplySaved { reply },
+          );
           true
         }
         Err(message) => {

@@ -141,6 +141,14 @@ pub struct Note {
   pub body: String,
   #[serde(default)]
   pub tags: Vec<String>,
+  /// Visibility: `true` ⇒ readable by everyone (other users + logged-out
+  /// visitors); `false`/absent ⇒ private to the owner.
+  #[serde(default)]
+  pub public: bool,
+  /// Owner's username, denormalized for public rendering. Set server-side on
+  /// every note regardless of visibility.
+  #[serde(default)]
+  pub author: String,
   #[serde(default)]
   pub created_time: String,
   #[serde(default)]
@@ -168,6 +176,9 @@ pub struct NoteInput {
   pub body: String,
   #[serde(default)]
   pub tags: Vec<String>,
+  /// Desired visibility. Absent ⇒ private.
+  #[serde(default)]
+  pub public: Option<bool>,
 }
 
 // --------------------------------------------------------------------------- //
@@ -226,6 +237,12 @@ pub struct Annotation {
   /// Optional attached note text.
   #[serde(default)]
   pub note: String,
+  /// Visibility: `true` ⇒ readable by everyone; `false`/absent ⇒ owner-only.
+  #[serde(default)]
+  pub public: bool,
+  /// Owner's username, denormalized for public rendering. Set server-side.
+  #[serde(default)]
+  pub author: String,
   #[serde(default)]
   pub created_time: String,
   #[serde(default)]
@@ -262,6 +279,58 @@ pub struct AnnotationInput {
   pub color: String,
   #[serde(default)]
   pub note: String,
+  /// Desired visibility. Absent ⇒ private.
+  #[serde(default)]
+  pub public: Option<bool>,
+}
+
+
+/// A threaded reply to a public note or annotation. Replies are inherently
+/// public (they only exist on public content) and carry their author.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Reply {
+  #[serde(
+    alias = "_id",
+    skip_serializing_if = "Option::is_none",
+    serialize_with = "ser_oid"
+  )]
+  pub id: Option<ObjectId>,
+  /// Hex id of the parent note/annotation.
+  pub parent_id: String,
+  /// `"annotation"` | `"note"`.
+  pub parent_kind: String,
+  /// Section route path — used for the section-scoped broadcast + snapshot.
+  pub section_path: String,
+  /// Author's hex user id. Set server-side; never trusted from the client.
+  #[serde(default)]
+  pub user_id: String,
+  /// Author username, denormalized. Set server-side.
+  #[serde(default)]
+  pub author: String,
+  /// Markdown body (may contain `$…$` math).
+  #[serde(default)]
+  pub body: String,
+  #[serde(default)]
+  pub created_time: String,
+  #[serde(default)]
+  pub updated_time: String,
+  /// Number of likes (denormalized `liked_by.len()`).
+  #[serde(default)]
+  pub likes: i64,
+  /// Hex user ids that liked this reply; drives the count and toggle.
+  #[serde(default)]
+  pub liked_by: Vec<String>,
+}
+
+/// Client-supplied reply fields (for create/update).
+#[derive(Debug, Deserialize)]
+pub struct ReplyInput {
+  pub id: Option<String>,
+  pub parent_id: String,
+  pub parent_kind: String,
+  pub section_path: String,
+  #[serde(default)]
+  pub body: String,
 }
 
 // --------------------------------------------------------------------------- //
@@ -318,6 +387,13 @@ pub enum StudyRequest {
   DeleteAnnotation { id: String },
   ListProgress,
   SaveProgress { progress: ProgressInput },
+  /// Subscribe this session to a section's public stream and return the
+  /// current public snapshot. Allowed for anonymous sessions.
+  SubscribeSection { section_path: String },
+  SaveReply { reply: ReplyInput },
+  DeleteReply { id: String },
+  /// Toggle the requesting user's like on a reply.
+  LikeReply { id: String },
 }
 
 impl StudyRequest {
@@ -339,6 +415,16 @@ pub enum StudyResponse {
   AnnotationDeleted { id: String },
   Progress { items: Vec<Progress> },
   ProgressSaved { item: Progress },
+  /// Public content for a section: others' (and one's own) public notes &
+  /// annotations plus all replies. Sent in response to `SubscribeSection`.
+  SectionPublic {
+    section_path: String,
+    annotations: Vec<Annotation>,
+    notes: Vec<Note>,
+    replies: Vec<Reply>,
+  },
+  ReplySaved { reply: Reply },
+  ReplyDeleted { id: String, section_path: String },
   Error { message: String },
 }
 
@@ -346,5 +432,13 @@ pub enum StudyResponse {
 #[derive(Debug, Clone)]
 pub struct StudyEvent {
   pub user_id: String,
+  pub response: StudyResponse,
+}
+
+/// A public-content mutation broadcast to every session — authed or
+/// anonymous — currently viewing `section_path`.
+#[derive(Debug, Clone)]
+pub struct StudySectionEvent {
+  pub section_path: String,
   pub response: StudyResponse,
 }

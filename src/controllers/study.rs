@@ -8,7 +8,7 @@ use crate::{
   db,
   models::study::{
     Annotation, AnnotationInput, Claims, Note, NoteInput, Progress,
-    ProgressInput, User,
+    ProgressInput, Reply, ReplyInput, User,
   },
 };
 
@@ -30,6 +30,7 @@ const USERS: &str = "study_users";
 const NOTES: &str = "study_notes";
 const ANNOTATIONS: &str = "study_annotations";
 const PROGRESS: &str = "study_progress";
+const REPLIES: &str = "study_replies";
 
 // --------------------------------------------------------------------------- //
 // Password hashing
@@ -161,17 +162,28 @@ pub async fn list_notes(
     .map_err(|e| e.to_string())
 }
 
+/// Saves a note (insert or owner-scoped update). Returns the saved note and
+/// whether it was *public before* this save — the route uses that to detect an
+/// unpublish and tell other viewers to drop it.
 pub async fn save_note(
   client: &Client,
   user_id: &str,
+  author: &str,
   input: NoteInput,
-) -> Result<Note, String> {
+) -> Result<(Note, bool), String> {
   let coll = db::collection::<Note>(client, NOTES);
   let now = Utc::now().to_rfc3339();
+  let public = input.public.unwrap_or(false);
 
   if let Some(id) = input.id.as_deref().filter(|s| !s.is_empty()) {
     // update existing (scoped to owner)
     let oid = db::parse_oid(id)?;
+    let was_public = coll
+      .find_one(doc! { "_id": oid, "user_id": user_id })
+      .await
+      .map_err(|e| e.to_string())?
+      .map(|n| n.public)
+      .unwrap_or(false);
     coll
       .update_one(
         doc! { "_id": oid, "user_id": user_id },
@@ -187,16 +199,19 @@ pub async fn save_note(
           "pages": &input.pages,
           "citation": &input.citation,
           "topics": &input.topics,
+          "public": public,
+          "author": author,
           "updated_time": &now,
         } },
       )
       .await
       .map_err(|e| e.to_string())?;
-    return coll
+    let note = coll
       .find_one(doc! { "_id": oid, "user_id": user_id })
       .await
       .map_err(|e| e.to_string())?
-      .ok_or_else(|| "note not found".into());
+      .ok_or_else(|| "note not found".to_string())?;
+    return Ok((note, was_public));
   }
 
   let mut note = Note {
@@ -213,26 +228,34 @@ pub async fn save_note(
     title: input.title,
     body: input.body,
     tags: input.tags,
+    public,
+    author: author.to_string(),
     created_time: now.clone(),
     updated_time: now,
   };
   let res = coll.insert_one(&note).await.map_err(|e| e.to_string())?;
   note.id = res.inserted_id.as_object_id();
-  Ok(note)
+  Ok((note, false))
 }
 
+/// Deletes a note (owner-scoped). Returns the deleted note's
+/// `(was_public, section_path)` so the route can drop it from other viewers.
 pub async fn delete_note(
   client: &Client,
   user_id: &str,
   id: &str,
-) -> Result<(), String> {
+) -> Result<Option<(bool, Option<String>)>, String> {
   let coll = db::collection::<Note>(client, NOTES);
   let oid = db::parse_oid(id)?;
+  let existing = coll
+    .find_one(doc! { "_id": oid, "user_id": user_id })
+    .await
+    .map_err(|e| e.to_string())?;
   coll
     .delete_one(doc! { "_id": oid, "user_id": user_id })
     .await
     .map_err(|e| e.to_string())?;
-  Ok(())
+  Ok(existing.map(|n| (n.public, n.section_path)))
 }
 
 // --------------------------------------------------------------------------- //
@@ -253,32 +276,46 @@ pub async fn list_annotations(
     .map_err(|e| e.to_string())
 }
 
+/// Saves an annotation (insert or owner-scoped update). Returns the saved
+/// annotation and whether it was *public before* this save (for unpublish
+/// detection in the route).
 pub async fn save_annotation(
   client: &Client,
   user_id: &str,
+  author: &str,
   input: AnnotationInput,
-) -> Result<Annotation, String> {
+) -> Result<(Annotation, bool), String> {
   let coll = db::collection::<Annotation>(client, ANNOTATIONS);
   let now = Utc::now().to_rfc3339();
+  let public = input.public.unwrap_or(false);
 
   if let Some(id) = input.id.as_deref().filter(|s| !s.is_empty()) {
     let oid = db::parse_oid(id)?;
+    let was_public = coll
+      .find_one(doc! { "_id": oid, "user_id": user_id })
+      .await
+      .map_err(|e| e.to_string())?
+      .map(|a| a.public)
+      .unwrap_or(false);
     coll
       .update_one(
         doc! { "_id": oid, "user_id": user_id },
         doc! { "$set": {
           "color": &input.color,
           "note": &input.note,
+          "public": public,
+          "author": author,
           "updated_time": &now,
         } },
       )
       .await
       .map_err(|e| e.to_string())?;
-    return coll
+    let ann = coll
       .find_one(doc! { "_id": oid, "user_id": user_id })
       .await
       .map_err(|e| e.to_string())?
-      .ok_or_else(|| "annotation not found".into());
+      .ok_or_else(|| "annotation not found".to_string())?;
+    return Ok((ann, was_public));
   }
 
   let mut ann = Annotation {
@@ -298,26 +335,171 @@ pub async fn save_annotation(
     occurrence: input.occurrence,
     color: input.color,
     note: input.note,
+    public,
+    author: author.to_string(),
     created_time: now.clone(),
     updated_time: now,
   };
   let res = coll.insert_one(&ann).await.map_err(|e| e.to_string())?;
   ann.id = res.inserted_id.as_object_id();
-  Ok(ann)
+  Ok((ann, false))
 }
 
+/// Deletes an annotation (owner-scoped). Returns the deleted annotation's
+/// `(was_public, section_path)` so the route can drop it from other viewers.
 pub async fn delete_annotation(
   client: &Client,
   user_id: &str,
   id: &str,
-) -> Result<(), String> {
+) -> Result<Option<(bool, String)>, String> {
   let coll = db::collection::<Annotation>(client, ANNOTATIONS);
   let oid = db::parse_oid(id)?;
+  let existing = coll
+    .find_one(doc! { "_id": oid, "user_id": user_id })
+    .await
+    .map_err(|e| e.to_string())?;
   coll
     .delete_one(doc! { "_id": oid, "user_id": user_id })
     .await
     .map_err(|e| e.to_string())?;
-  Ok(())
+  Ok(existing.map(|a| (a.public, a.section_path)))
+}
+
+
+/// All public annotations + public notes + replies for a section, from every
+/// user. Powers the `SubscribeSection` snapshot (and live deltas thereafter).
+pub async fn list_public_section(
+  client: &Client,
+  section_path: &str,
+) -> Result<(Vec<Annotation>, Vec<Note>, Vec<Reply>), String> {
+  let annotations = db::collection::<Annotation>(client, ANNOTATIONS)
+    .find(doc! { "section_path": section_path, "public": true })
+    .await
+    .map_err(|e| e.to_string())?
+    .try_collect()
+    .await
+    .map_err(|e| e.to_string())?;
+  let notes = db::collection::<Note>(client, NOTES)
+    .find(doc! { "section_path": section_path, "public": true })
+    .await
+    .map_err(|e| e.to_string())?
+    .try_collect()
+    .await
+    .map_err(|e| e.to_string())?;
+  let replies = list_replies_for_section(client, section_path).await?;
+  Ok((annotations, notes, replies))
+}
+
+pub async fn list_replies_for_section(
+  client: &Client,
+  section_path: &str,
+) -> Result<Vec<Reply>, String> {
+  db::collection::<Reply>(client, REPLIES)
+    .find(doc! { "section_path": section_path })
+    .await
+    .map_err(|e| e.to_string())?
+    .try_collect()
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Saves a reply (insert, or owner-scoped body edit). Any signed-in user may
+/// create one; only the author may edit. `parent_kind` is validated.
+pub async fn save_reply(
+  client: &Client,
+  user_id: &str,
+  author: &str,
+  input: ReplyInput,
+) -> Result<Reply, String> {
+  if input.parent_kind != "annotation" && input.parent_kind != "note" {
+    return Err("invalid parent_kind".into());
+  }
+  let coll = db::collection::<Reply>(client, REPLIES);
+  let now = Utc::now().to_rfc3339();
+
+  if let Some(id) = input.id.as_deref().filter(|s| !s.is_empty()) {
+    let oid = db::parse_oid(id)?;
+    coll
+      .update_one(
+        doc! { "_id": oid, "user_id": user_id },
+        doc! { "$set": { "body": &input.body, "updated_time": &now } },
+      )
+      .await
+      .map_err(|e| e.to_string())?;
+    return coll
+      .find_one(doc! { "_id": oid, "user_id": user_id })
+      .await
+      .map_err(|e| e.to_string())?
+      .ok_or_else(|| "reply not found".into());
+  }
+
+  let mut reply = Reply {
+    id: None,
+    parent_id: input.parent_id,
+    parent_kind: input.parent_kind,
+    section_path: input.section_path,
+    user_id: user_id.to_string(),
+    author: author.to_string(),
+    body: input.body,
+    created_time: now.clone(),
+    updated_time: now,
+    likes: 0,
+    liked_by: Vec::new(),
+  };
+  let res = coll.insert_one(&reply).await.map_err(|e| e.to_string())?;
+  reply.id = res.inserted_id.as_object_id();
+  Ok(reply)
+}
+
+/// Deletes a reply (owner-scoped). Returns its `section_path` for the broadcast.
+pub async fn delete_reply(
+  client: &Client,
+  user_id: &str,
+  id: &str,
+) -> Result<String, String> {
+  let coll = db::collection::<Reply>(client, REPLIES);
+  let oid = db::parse_oid(id)?;
+  let existing = coll
+    .find_one(doc! { "_id": oid, "user_id": user_id })
+    .await
+    .map_err(|e| e.to_string())?;
+  coll
+    .delete_one(doc! { "_id": oid, "user_id": user_id })
+    .await
+    .map_err(|e| e.to_string())?;
+  Ok(existing.map(|r| r.section_path).unwrap_or_default())
+}
+
+/// Toggles `user_id`'s like on a reply and returns the updated record. Any
+/// authenticated user may like (not owner-scoped).
+pub async fn like_reply(
+  client: &Client,
+  user_id: &str,
+  id: &str,
+) -> Result<Reply, String> {
+  let coll = db::collection::<Reply>(client, REPLIES);
+  let oid = db::parse_oid(id)?;
+  let mut reply = coll
+    .find_one(doc! { "_id": oid })
+    .await
+    .map_err(|e| e.to_string())?
+    .ok_or_else(|| "reply not found".to_string())?;
+
+  if let Some(pos) = reply.liked_by.iter().position(|u| u == user_id) {
+    reply.liked_by.remove(pos);
+  } else {
+    reply.liked_by.push(user_id.to_string());
+  }
+  reply.likes = reply.liked_by.len() as i64;
+
+  coll
+    .update_one(
+      doc! { "_id": oid },
+      doc! { "$set": { "liked_by": &reply.liked_by, "likes": reply.likes } },
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+  Ok(reply)
 }
 
 // --------------------------------------------------------------------------- //
