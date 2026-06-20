@@ -18,6 +18,7 @@ use argon2::{
 };
 use chrono::{Duration, Utc};
 use futures::TryStreamExt;
+use std::collections::HashMap;
 use jsonwebtoken::{
   Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode,
 };
@@ -255,7 +256,60 @@ pub async fn delete_note(
     .delete_one(doc! { "_id": oid, "user_id": user_id })
     .await
     .map_err(|e| e.to_string())?;
+  if let Some(note) = &existing {
+    if let Some(section_path) = note.section_path.as_deref() {
+      delete_reply_subtree(client, section_path, id).await?;
+    }
+  }
   Ok(existing.map(|n| (n.public, n.section_path)))
+}
+
+/// Cascade-deletes the whole reply subtree under `root_id` (a note, annotation,
+/// or reply id): every descendant reply, at any nesting depth, from any author —
+/// so deleting a parent never orphans a nested thread. Replies nest purely via
+/// `parent_id`, so we walk the tree level by level and delete every id found.
+/// Mirrors the blog's recursive comment delete.
+async fn delete_reply_subtree(
+  client: &Client,
+  section_path: &str,
+  root_id: &str,
+) -> Result<(), String> {
+  let coll = db::collection::<Reply>(client, REPLIES);
+  // A reply shares its whole ancestry's section, so the entire tree lives in one
+  // section. Load it once, then walk in memory — two queries, regardless of depth.
+  let all: Vec<Reply> = coll
+    .find(doc! { "section_path": section_path })
+    .await
+    .map_err(|e| e.to_string())?
+    .try_collect()
+    .await
+    .map_err(|e| e.to_string())?;
+
+  let mut children: HashMap<String, Vec<ObjectId>> = HashMap::new();
+  for r in &all {
+    if let Some(oid) = r.id {
+      children.entry(r.parent_id.clone()).or_default().push(oid);
+    }
+  }
+
+  let mut frontier = vec![root_id.to_string()];
+  let mut doomed: Vec<ObjectId> = Vec::new();
+  while let Some(parent) = frontier.pop() {
+    if let Some(kids) = children.get(&parent) {
+      for &oid in kids {
+        doomed.push(oid);
+        frontier.push(oid.to_hex());
+      }
+    }
+  }
+
+  if !doomed.is_empty() {
+    coll
+      .delete_many(doc! { "_id": { "$in": doomed } })
+      .await
+      .map_err(|e| e.to_string())?;
+  }
+  Ok(())
 }
 
 // --------------------------------------------------------------------------- //
@@ -362,6 +416,9 @@ pub async fn delete_annotation(
     .delete_one(doc! { "_id": oid, "user_id": user_id })
     .await
     .map_err(|e| e.to_string())?;
+  if let Some(annotation) = &existing {
+    delete_reply_subtree(client, &annotation.section_path, id).await?;
+  }
   Ok(existing.map(|a| (a.public, a.section_path)))
 }
 
@@ -467,6 +524,9 @@ pub async fn delete_reply(
     .delete_one(doc! { "_id": oid, "user_id": user_id })
     .await
     .map_err(|e| e.to_string())?;
+  if let Some(reply) = &existing {
+    delete_reply_subtree(client, &reply.section_path, id).await?;
+  }
   Ok(existing.map(|r| r.section_path).unwrap_or_default())
 }
 
