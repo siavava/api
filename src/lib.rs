@@ -45,7 +45,7 @@ pub mod routes;
 /// receive all view-count updates within their namespace. Views of
 /// these dashboard pages are excluded from the activity and event
 /// logs so a site's stats never count their own observers.
-pub const MONITOR_PATHS: [&str; 2] = ["<b>:/archive", "<p>:/metrics"];
+pub const MONITOR_PATHS: [&str; 2] = ["<b>:/archive", "<p>:/status"];
 
 /// Shared application state, passed to all route handlers via
 /// `actix_web::web::Data`.
@@ -70,7 +70,7 @@ pub struct AppState {
   /// Sent to ALL clients so the dynamic island updates live.
   pub now_events: broadcast::Sender<NowEvent>,
   /// Broadcast channel for visitor-location events. Forwarded to
-  /// monitor pages (e.g. the portfolio metrics dashboard) within the
+  /// monitor pages (e.g. the portfolio status dashboard) within the
   /// matching site namespace.
   pub location_events:
     broadcast::Sender<crate::models::location::LocationEvent>,
