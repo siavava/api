@@ -267,8 +267,15 @@ impl ViewsOps for MockViewsStore {
     Ok(pv)
   }
 
-  async fn get_all_views(&self) -> Result<Vec<PageViews>, String> {
+  async fn get_all_views(
+    &self,
+    namespace: Option<&str>,
+  ) -> Result<Vec<PageViews>, String> {
     let mut all = self.views.lock().unwrap().clone();
+    if let Some(ns) = namespace {
+      let prefix = format!("{ns}:");
+      all.retain(|view| view.route.starts_with(&prefix));
+    }
     all.sort_by(|a, b| b.count.cmp(&a.count));
     Ok(all)
   }

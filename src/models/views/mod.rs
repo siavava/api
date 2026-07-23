@@ -13,5 +13,5 @@
 mod model;
 mod protocol;
 
-pub use model::PageViews;
+pub use model::{ActivityBucket, PageViews};
 pub use protocol::{ViewEvent, ViewsRequest, ViewsResponse};

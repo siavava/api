@@ -7,8 +7,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 #[serde(tag = "action", rename_all = "lowercase")]
 pub enum ViewsRequest {
-  /// Fetch all view counts. Does not affect the active path.
-  List,
+  /// Fetch all view counts, optionally filtered to a route namespace
+  /// prefix (e.g. `<p>`). Does not affect the active path.
+  List {
+    #[serde(default)]
+    namespace: Option<String>,
+  },
   /// Fetch the view count for a single route.
   Get { path: String },
 }

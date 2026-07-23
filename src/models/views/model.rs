@@ -71,3 +71,17 @@ impl From<ByteString> for PageViews {
     serde_json::from_str(bytes.as_ref()).unwrap_or_default()
   }
 }
+
+/// One hour of view activity for a site namespace.
+///
+/// # Fields
+///
+/// * `hour_ts` — Hours since the Unix epoch (UTC bucket key).
+/// * `count` — Views recorded during that hour.
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+pub struct ActivityBucket {
+  /// Hours since the Unix epoch (UTC bucket key).
+  pub hour_ts: i64,
+  /// Views recorded during that hour.
+  pub count: i64,
+}

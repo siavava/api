@@ -7,7 +7,7 @@ use server::models::views::{PageViews, ViewsRequest, ViewsResponse};
 fn deserialize_views_request_list() {
   let json = r#"{"action": "list"}"#;
   let req: ViewsRequest = serde_json::from_str(json).unwrap();
-  assert!(matches!(req, ViewsRequest::List));
+  assert!(matches!(req, ViewsRequest::List { namespace: None }));
 }
 
 #[test]

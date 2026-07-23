@@ -21,8 +21,11 @@ pub async fn handle_ws_request(
   request: ViewsRequest,
 ) -> bool {
   let response = match request {
-    ViewsRequest::List => {
-      let all = db_client.get_all_views().await.unwrap_or_default();
+    ViewsRequest::List { namespace } => {
+      let all = db_client
+        .get_all_views(namespace.as_deref())
+        .await
+        .unwrap_or_default();
       ConnectResponse::Views(ViewsResponse::List { views: all })
     }
     ViewsRequest::Get { path } => {

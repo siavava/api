@@ -20,6 +20,7 @@ use actix_web::web::scope;
 pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(
     scope("/views")
+      .service(handlers::rest::get_activity)
       .service(handlers::rest::get_views)
       .service(handlers::rest::delete_views)
       .service(handlers::rest::insert_views)

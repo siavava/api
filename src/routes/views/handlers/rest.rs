@@ -1,6 +1,7 @@
 //! REST handlers for view-count endpoints.
 
 use crate::{AppState, all_views, models::views::PageViews, views};
+use crate::controllers::views as views_controller;
 
 use actix_web::{
   Error as ActixError, HttpResponse, delete, get, post,
@@ -107,6 +108,40 @@ pub async fn insert_views(
         Ok(_) => Ok(HttpResponse::Ok().json("Inserted")),
         Err(_) => Ok(HttpResponse::InternalServerError().json("Error")),
       }
+    }
+  }
+}
+
+/// Query parameters for `GET /views/activity/`.
+#[derive(Deserialize, Debug)]
+pub struct ActivityRequestData {
+  /// The site namespace to read activity for (e.g. `<p>`).
+  pub ns: String,
+  /// Trailing window in hours. Defaults to one week.
+  pub hours: Option<i64>,
+}
+
+/// `GET /views/activity/` — hourly view activity for a namespace.
+///
+/// # Example Response
+///
+/// ```json
+/// [{ "hour_ts": 495772, "count": 12 }]
+/// ```
+#[get("/activity/")]
+pub async fn get_activity(
+  app_state: Data<AppState>,
+  request_data: Query<ActivityRequestData>,
+) -> Result<HttpResponse, ActixError> {
+  let db_client = &app_state.db_client;
+  let ActivityRequestData { ns, hours } = request_data.into_inner();
+  let hours = hours.unwrap_or(168).clamp(1, 24 * 60);
+
+  match views_controller::get_activity(db_client, &ns, hours).await {
+    Ok(buckets) => Ok(HttpResponse::Ok().json(buckets)),
+    Err(err) => {
+      tracing::error!("failed to read view activity: {err}");
+      Ok(HttpResponse::InternalServerError().json("Error"))
     }
   }
 }

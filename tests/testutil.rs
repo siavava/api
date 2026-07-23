@@ -310,7 +310,7 @@ async fn get_all_views_sorted_by_count_descending() {
     .await
     .unwrap();
 
-  let all = store.get_all_views().await.unwrap();
+  let all = store.get_all_views(None).await.unwrap();
   assert_eq!(all.len(), 3);
   assert_eq!(all[0].route, "/page/c");
   assert_eq!(all[0].count, 3);
