@@ -19,6 +19,7 @@ use crate::{
       ClientChannels, ConnectRequest, ConnectResponse, OpenGraphResponse,
     },
     health::HealthDiagnostics,
+    location::LocationResponse,
     now::NowEvent,
     playback::PlaybackResponse,
     views::ViewsResponse,
@@ -144,16 +145,32 @@ async fn ws_event_loop(
 
       event = receivers.views.recv() => {
         let Ok(event) = event else { continue };
-        // ? ALWAYS NOTIFY OF VIEWS UPDATES
-        // ? TO CLIENTS LOOKING AT ARCHIVE
         let path = active_path.as_deref();
-        let is_archive = path == Some("<b>:/archive");
         let is_match = path == Some(event.views.route.as_str());
-        if !is_archive && !is_match {
+        let is_monitor = monitors_route(path, &event.views.route);
+        if !is_monitor && !is_match {
           continue;
         }
         let response = ConnectResponse::Views(ViewsResponse::Update {
           views: event.views,
+        });
+        if !socket::send_json(&mut session, &response).await {
+          break;
+        }
+      }
+
+      event = receivers.location.recv() => {
+        let Ok(event) = event else { continue };
+        let path = active_path.as_deref();
+        let Some(ns) = event.namespace.as_deref() else { continue };
+        let is_monitor = path.is_some_and(|p| {
+          MONITOR_PATHS.contains(&p) && p.starts_with(&format!("{ns}:"))
+        });
+        if !is_monitor {
+          continue;
+        }
+        let response = ConnectResponse::Location(LocationResponse::Visit {
+          entry: event.entry,
         });
         if !socket::send_json(&mut session, &response).await {
           break;
@@ -284,4 +301,34 @@ async fn handle_ws_frame(
     }
     _ => true,
   }
+}
+
+/// Paths that display every view count for their site and therefore
+/// receive all view-count updates within their namespace.
+const MONITOR_PATHS: [&str; 2] = ["<b>:/archive", "<p>:/metrics"];
+
+/// Whether a client's active path is a monitor page for the site
+/// namespace that `route` belongs to.
+///
+/// # Arguments
+///
+/// * `active_path` — The client's active path, if any.
+/// * `route` — The namespaced route that changed (e.g. `<p>:/about`).
+///
+/// # Returns
+///
+/// `true` when the active path is a monitor page and shares the
+/// changed route's namespace prefix. Un-namespaced legacy routes are
+/// never forwarded to monitors.
+fn monitors_route(active_path: Option<&str>, route: &str) -> bool {
+  let Some(path) = active_path else {
+    return false;
+  };
+  if !MONITOR_PATHS.contains(&path) {
+    return false;
+  }
+  let Some((namespace, _)) = route.split_once(':') else {
+    return false;
+  };
+  path.starts_with(&format!("{namespace}:"))
 }

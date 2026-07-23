@@ -32,24 +32,6 @@ pub fn get_collection(client: &Client) -> mongodb::Collection<LocationData> {
   crate::db::collection(client, COLL_NAME)
 }
 
-/// Returns a handle to the `location_history` collection.
-///
-/// Each document represents a unique city+state pair with a visit count.
-///
-/// # Arguments
-///
-/// * `client` — The MongoDB client connection.
-///
-/// # Returns
-///
-/// A `mongodb::Collection<LocationData>` bound to the `location_history`
-/// collection.
-fn get_history_collection(
-  client: &Client,
-) -> mongodb::Collection<LocationData> {
-  crate::db::collection(client, HISTORY_COLL_NAME)
-}
-
 /// Records a new location: updates the history log and overwrites the
 /// "last known" location, all concurrently.
 ///
@@ -68,17 +50,20 @@ fn get_history_collection(
 ///
 /// # Returns
 ///
-/// The **previous** last-known location (before the update).
+/// The **previous** last-known location (before the update), together
+/// with the updated history entry for the recorded city+state.
 pub async fn get_last_and_update(
   client: &Client,
   city: &str,
   state: &str,
-) -> Result<LocationData, DbError> {
-  let (_, last) = tokio::try_join!(
-    update_location_history(client, city, state),
+  namespace: Option<&str>,
+  coords: Option<(f64, f64)>,
+) -> Result<(LocationData, LocationHistoryEntry), DbError> {
+  let (entry, last) = tokio::try_join!(
+    update_location_history(client, city, state, namespace, coords),
     update_last_location(client, city, state),
   )?;
-  Ok(last)
+  Ok((last, entry))
 }
 
 /// Upserts the location history entry for a city+state pair.
@@ -97,27 +82,41 @@ pub async fn get_last_and_update(
 ///
 /// # Returns
 ///
-/// `Ok(LocationData::default())` — the return value is not meaningful;
-/// the caller only cares about the side effect.
+/// The updated [`LocationHistoryEntry`] after the upsert.
 async fn update_location_history(
   client: &Client,
   city: &str,
   state: &str,
-) -> Result<(), DbError> {
-  let history_collection = get_history_collection(client);
+  namespace: Option<&str>,
+  coords: Option<(f64, f64)>,
+) -> Result<LocationHistoryEntry, DbError> {
+  let history_collection: mongodb::Collection<mongodb::bson::Document> =
+    crate::db::collection(client, HISTORY_COLL_NAME);
 
-  history_collection
-    .update_one(
-      doc! { "city": city, "state": state },
-      doc! {
-        "$set": { "timestamp": mongodb::bson::DateTime::now() },
-        "$inc": { "count": 1 }
-      },
+  let mut set = doc! { "timestamp": mongodb::bson::DateTime::now() };
+  if let Some(ns) = namespace {
+    set.insert("namespace", ns);
+  }
+  if let Some((lat, lon)) = coords {
+    set.insert("lat", lat);
+    set.insert("lon", lon);
+  }
+
+  let updated = history_collection
+    .find_one_and_update(
+      doc! { "city": city, "state": state, "namespace": namespace },
+      doc! { "$set": set, "$inc": { "count": 1 } },
     )
     .upsert(true)
+    .return_document(mongodb::options::ReturnDocument::After)
     .await?;
 
-  Ok(())
+  Ok(
+    updated
+      .as_ref()
+      .map(LocationHistoryEntry::from_document)
+      .unwrap_or_default(),
+  )
 }
 
 /// Overwrites the single "last known location" document with a new
@@ -167,23 +166,49 @@ pub async fn get_last(client: &Client) -> Result<LocationData, DbError> {
   Ok(collection.find_one(doc! {}).await?.unwrap_or_default())
 }
 
+/// Reads the full visitor location history, sorted by visit count
+/// descending.
+///
+/// # Arguments
+///
+/// * `client` — The MongoDB client connection.
+///
+/// # Returns
+///
+/// All [`LocationHistoryEntry`] documents from `location_history`,
+/// most-visited first. Unreadable fields default rather than erroring.
+pub async fn get_location_history(
+  client: &Client,
+  namespace: Option<&str>,
+) -> Result<Vec<LocationHistoryEntry>, DbError> {
+  use futures::TryStreamExt;
+
+  let collection: mongodb::Collection<mongodb::bson::Document> =
+    crate::db::collection(client, HISTORY_COLL_NAME);
+
+  let filter = match namespace {
+    Some(ns) => doc! { "namespace": ns },
+    None => doc! {},
+  };
+
+  let mut cursor = collection.find(filter).sort(doc! { "count": -1 }).await?;
+  let mut entries = Vec::new();
+  while let Some(document) = cursor.try_next().await? {
+    entries.push(LocationHistoryEntry::from_document(&document));
+  }
+  Ok(entries)
+}
+
 /// Convenience macro for location operations.
 ///
 /// # Forms
 ///
-/// * `location!(eval $client, eval $city, eval $state)` — updates and
-///   returns the **previous** location.
 /// * `location!(eval $client)` — reads the last known location without
 ///   updating.
 ///
 /// Falls back to [`LocationData::default()`] on error.
 #[macro_export]
 macro_rules! location {
-  (eval $client:expr, eval $city:expr, eval $state:expr) => {
-    $crate::controllers::location::get_last_and_update($client, $city, $state)
-      .await
-      .unwrap_or_default()
-  };
   (eval $client:expr) => {
     $crate::controllers::location::get_last($client)
       .await

@@ -10,6 +10,7 @@
 use super::{
   comments::{CommentEvent, CommentRequest, CommentResponse},
   health::{HealthDiagnostics, HealthOptions},
+  location::{LocationEvent, LocationResponse},
   now::{NowEvent, NowRequest, NowResponse},
   opengraph::OpenGraphData,
   playback::{PlaybackRequest, PlaybackResponse},
@@ -156,6 +157,7 @@ pub struct EventSenders {
   pub views: broadcast::Sender<ViewEvent>,
   pub active_count: broadcast::Sender<usize>,
   pub now: broadcast::Sender<NowEvent>,
+  pub location: broadcast::Sender<LocationEvent>,
 }
 
 /// Per-client broadcast receivers.
@@ -165,6 +167,7 @@ pub struct EventReceivers {
   pub views: broadcast::Receiver<ViewEvent>,
   pub active_count: broadcast::Receiver<usize>,
   pub now: broadcast::Receiver<NowEvent>,
+  pub location: broadcast::Receiver<LocationEvent>,
 }
 
 /// Grouped sender/receiver handles for a single WebSocket client.
@@ -186,12 +189,14 @@ impl ClientChannels {
       views: state.view_events.clone(),
       active_count: state.active_count_events.clone(),
       now: state.now_events.clone(),
+      location: state.location_events.clone(),
     };
     let receivers = EventReceivers {
       comments: senders.comments.subscribe(),
       views: senders.views.subscribe(),
       active_count: senders.active_count.subscribe(),
       now: senders.now.subscribe(),
+      location: senders.location.subscribe(),
     };
     Self { senders, receivers }
   }
@@ -226,6 +231,8 @@ pub enum ConnectResponse {
   OpenGraph(OpenGraphResponse),
   /// A playback-scoped response.
   Playback(PlaybackResponse),
+  /// A visitor-location response.
+  Location(LocationResponse),
   /// Acknowledgement of a watch scope request.
   Watch(WatchResponse),
 }
