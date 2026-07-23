@@ -18,7 +18,6 @@ use argon2::{
 };
 use chrono::{Duration, Utc};
 use futures::TryStreamExt;
-use std::collections::HashMap;
 use jsonwebtoken::{
   Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode,
 };
@@ -26,6 +25,7 @@ use mongodb::{
   Client,
   bson::{doc, oid::ObjectId},
 };
+use std::collections::HashMap;
 
 const USERS: &str = "study_users";
 const NOTES: &str = "study_notes";
@@ -256,10 +256,10 @@ pub async fn delete_note(
     .delete_one(doc! { "_id": oid, "user_id": user_id })
     .await
     .map_err(|e| e.to_string())?;
-  if let Some(note) = &existing {
-    if let Some(section_path) = note.section_path.as_deref() {
-      delete_reply_subtree(client, section_path, id).await?;
-    }
+  if let Some(note) = &existing
+    && let Some(section_path) = note.section_path.as_deref()
+  {
+    delete_reply_subtree(client, section_path, id).await?;
   }
   Ok(existing.map(|n| (n.public, n.section_path)))
 }
@@ -421,7 +421,6 @@ pub async fn delete_annotation(
   }
   Ok(existing.map(|a| (a.public, a.section_path)))
 }
-
 
 /// All public annotations + public notes + replies for a section, from every
 /// user. Powers the `SubscribeSection` snapshot (and live deltas thereafter).
@@ -604,8 +603,12 @@ pub async fn save_progress(
     set.insert("status", &input.status);
   }
   match input.scroll {
-    Some(s) => { set.insert("scroll", s); }
-    None => { on_insert.insert("scroll", 0.0); }
+    Some(s) => {
+      set.insert("scroll", s);
+    }
+    None => {
+      on_insert.insert("scroll", 0.0);
+    }
   }
   let mut update = doc! { "$set": set };
   if !on_insert.is_empty() {
