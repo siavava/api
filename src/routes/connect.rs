@@ -164,7 +164,7 @@ async fn ws_event_loop(
         let path = active_path.as_deref();
         let Some(ns) = event.namespace.as_deref() else { continue };
         let is_monitor = path.is_some_and(|p| {
-          MONITOR_PATHS.contains(&p) && p.starts_with(&format!("{ns}:"))
+          crate::MONITOR_PATHS.contains(&p) && p.starts_with(&format!("{ns}:"))
         });
         if !is_monitor {
           continue;
@@ -303,10 +303,6 @@ async fn handle_ws_frame(
   }
 }
 
-/// Paths that display every view count for their site and therefore
-/// receive all view-count updates within their namespace.
-const MONITOR_PATHS: [&str; 2] = ["<b>:/archive", "<p>:/metrics"];
-
 /// Whether a client's active path is a monitor page for the site
 /// namespace that `route` belongs to.
 ///
@@ -324,7 +320,7 @@ fn monitors_route(active_path: Option<&str>, route: &str) -> bool {
   let Some(path) = active_path else {
     return false;
   };
-  if !MONITOR_PATHS.contains(&path) {
+  if !crate::MONITOR_PATHS.contains(&path) {
     return false;
   }
   let Some((namespace, _)) = route.split_once(':') else {

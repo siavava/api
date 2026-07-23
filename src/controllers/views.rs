@@ -226,11 +226,14 @@ pub async fn track_page_view(
     && let Ok(updated) =
       get_views(client, path, ViewsIncrement::INCREMENT).await
   {
-    let _ = record_activity(client, path).await;
-    if let Some((namespace, label)) = path.split_once(':') {
-      let _ =
-        crate::controllers::events::record_event(client, namespace, "view", label)
-          .await;
+    if !crate::MONITOR_PATHS.contains(&path) {
+      let _ = record_activity(client, path).await;
+      if let Some((namespace, label)) = path.split_once(':') {
+        let _ = crate::controllers::events::record_event(
+          client, namespace, "view", label,
+        )
+        .await;
+      }
     }
     let _ = senders.views.send(ViewEvent { views: updated });
   }

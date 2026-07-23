@@ -41,6 +41,12 @@ pub mod models;
 pub mod protocol;
 pub mod routes;
 
+/// Paths that display every view count for their site and therefore
+/// receive all view-count updates within their namespace. Views of
+/// these dashboard pages are excluded from the activity and event
+/// logs so a site's stats never count their own observers.
+pub const MONITOR_PATHS: [&str; 2] = ["<b>:/archive", "<p>:/metrics"];
+
 /// Shared application state, passed to all route handlers via
 /// `actix_web::web::Data`.
 #[derive(Clone)]
