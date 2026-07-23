@@ -272,7 +272,7 @@ impl ViewsOps for MockViewsStore {
       let prefix = format!("{ns}:");
       all.retain(|view| view.route.starts_with(&prefix));
     }
-    all.sort_by(|a, b| b.count.cmp(&a.count));
+    all.sort_by_key(|b| std::cmp::Reverse(b.count));
     Ok(all)
   }
 }
