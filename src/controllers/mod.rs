@@ -19,6 +19,8 @@
 
 /// Core logic for blog comments (CRUD, likes, replies).
 pub mod comments;
+/// Rolling site-event log (views + visits).
+pub mod events;
 /// Location tracking (last known + history).
 pub mod location;
 /// Owner-published "now" status slots with TTL.

@@ -20,6 +20,8 @@
 pub mod comments;
 /// Unified WebSocket endpoint for comments and view-count watch.
 mod connect;
+/// REST endpoint for the site-event log.
+mod events;
 /// REST endpoint for location tracking.
 mod location;
 /// REST endpoint for OpenGraph metadata extraction.
@@ -39,6 +41,7 @@ mod views;
 pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   quotes::register(cfg);
   views::register(cfg);
+  events::register(cfg);
   location::register(cfg);
   comments::register(cfg);
   connect::register(cfg);
