@@ -27,17 +27,17 @@ async fn greet(name: web::Path<String>) -> impl Responder {
 /// 1. Loads environment variables from `.env` (via `dotenv`).
 /// 2. Initializes `tracing` for structured logging.
 /// 3. Connects to MongoDB using `MONGODB_URI` (required) and resolves
-///    `PORT` (optional, defaults to `3000`).
+///    `PORT` (optional, defaults to `8080`).
 /// 4. Builds the Actix-Web server with CORS, request logging,
 ///    trailing-slash normalization, and all route modules.
 ///
 /// # Environment Variables
 ///
 /// * **`MONGODB_URI`** (required) — MongoDB connection string.
-/// * **`PORT`** (optional) — Port to bind to. Defaults to `3000`.
+/// * **`PORT`** (optional) — Port to bind to. Defaults to `8080`.
 #[actix_web::main]
 async fn main() -> Result<()> {
-  const DEFAULT_PORT: u16 = 3000;
+  const DEFAULT_PORT: u16 = 8080;
 
   dotenv().ok();
   tracing_subscriber::fmt::init();
@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
 
   let app_state = app_state!(db_client);
 
-  info!("STARTING APP");
+  info!("STARTING APP ON PORT {port}");
   HttpServer::new(move || {
     App::new()
       .wrap(Logger::default())
