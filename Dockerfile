@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # Dockerfile for building server image
 #
 # Author: Amittai (@siavava)
@@ -8,23 +10,23 @@
 
 FROM rust:1-slim-trixie AS builder
 
-RUN apt-get update && apt-get install make
-
 WORKDIR /usr/src/server
 COPY . .
 
-RUN make
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/src/server/target \
+    cargo build --release --locked \
+ && cp target/release/server /usr/local/bin/server
 
 ##########################################
-# BUILD DEPLOYMENT IMAGE (debian-slim)
+# BUILD DEPLOYMENT IMAGE (distroless)
 ##########################################
 
-FROM debian:stable-slim AS runner
+FROM gcr.io/distroless/cc-debian13:nonroot AS runner
 
-WORKDIR /usr/local/bin
-COPY --from=builder /usr/src/server/target/release/server .
+COPY --from=builder /usr/local/bin/server /usr/local/bin/server
 
-EXPOSE 8080 8080
-EXPOSE 8080 80
+ENV PORT=8080
+EXPOSE 8080
 
-ENTRYPOINT ["./server"]
+ENTRYPOINT ["/usr/local/bin/server"]

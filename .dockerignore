@@ -1,2 +1,5 @@
 target/
 .credentials/
+.env
+.git/
+.github/
