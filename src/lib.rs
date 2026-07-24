@@ -47,6 +47,10 @@ pub mod routes;
 /// logs so a site's stats never count their own observers.
 pub const MONITOR_PATHS: [&str; 2] = ["<b>:/archive", "<p>:/status"];
 
+/// The cross-site monitor: the portfolio status dashboard receives
+/// updates from every site namespace, not just its own.
+pub const GLOBAL_MONITOR: &str = "<p>:/status";
+
 /// Shared application state, passed to all route handlers via
 /// `actix_web::web::Data`.
 #[derive(Clone)]

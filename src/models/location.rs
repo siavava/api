@@ -130,9 +130,11 @@ pub struct LocationEvent {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum LocationResponse {
-  /// A recorded visit, carrying the updated history entry.
+  /// A recorded visit, carrying the updated history entry and the
+  /// site namespace it was attributed to (e.g. `<p>`).
   Visit {
     #[serde(flatten)]
     entry: LocationHistoryEntry,
+    ns: String,
   },
 }

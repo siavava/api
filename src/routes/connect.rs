@@ -164,13 +164,16 @@ async fn ws_event_loop(
         let path = active_path.as_deref();
         let Some(ns) = event.namespace.as_deref() else { continue };
         let is_monitor = path.is_some_and(|p| {
-          crate::MONITOR_PATHS.contains(&p) && p.starts_with(&format!("{ns}:"))
+          p == crate::GLOBAL_MONITOR
+            || (crate::MONITOR_PATHS.contains(&p)
+              && p.starts_with(&format!("{ns}:")))
         });
         if !is_monitor {
           continue;
         }
         let response = ConnectResponse::Location(LocationResponse::Visit {
           entry: event.entry,
+          ns: ns.to_string(),
         });
         if !socket::send_json(&mut session, &response).await {
           break;
@@ -320,11 +323,12 @@ fn monitors_route(active_path: Option<&str>, route: &str) -> bool {
   let Some(path) = active_path else {
     return false;
   };
-  if !crate::MONITOR_PATHS.contains(&path) {
-    return false;
-  }
   let Some((namespace, _)) = route.split_once(':') else {
     return false;
   };
-  path.starts_with(&format!("{namespace}:"))
+  if path == crate::GLOBAL_MONITOR {
+    return true;
+  }
+  crate::MONITOR_PATHS.contains(&path)
+    && path.starts_with(&format!("{namespace}:"))
 }
