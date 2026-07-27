@@ -284,7 +284,6 @@ pub struct AnnotationInput {
   pub public: Option<bool>,
 }
 
-
 /// A threaded reply to a public note or annotation. Replies are inherently
 /// public (they only exist on public content) and carry their author.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -380,25 +379,44 @@ pub struct ProgressInput {
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum StudyRequest {
   ListNotes,
-  SaveNote { note: NoteInput },
-  DeleteNote { id: String },
+  SaveNote {
+    note: NoteInput,
+  },
+  DeleteNote {
+    id: String,
+  },
   ListAnnotations,
-  SaveAnnotation { annotation: AnnotationInput },
-  DeleteAnnotation { id: String },
+  SaveAnnotation {
+    annotation: AnnotationInput,
+  },
+  DeleteAnnotation {
+    id: String,
+  },
   ListProgress,
-  SaveProgress { progress: ProgressInput },
+  SaveProgress {
+    progress: ProgressInput,
+  },
   /// Subscribe this session to a section's public stream and return the
   /// current public snapshot. Allowed for anonymous sessions.
-  SubscribeSection { section_path: String },
-  SaveReply { reply: ReplyInput },
-  DeleteReply { id: String },
+  SubscribeSection {
+    section_path: String,
+  },
+  SaveReply {
+    reply: ReplyInput,
+  },
+  DeleteReply {
+    id: String,
+  },
   /// Toggle the requesting user's like on a reply.
-  LikeReply { id: String },
+  LikeReply {
+    id: String,
+  },
 }
 
 impl StudyRequest {
   pub fn parse(text: &str) -> Result<Self, String> {
-    serde_json::from_str(text).map_err(|e| format!("invalid study request: {e}"))
+    serde_json::from_str(text)
+      .map_err(|e| format!("invalid study request: {e}"))
   }
 }
 
@@ -407,14 +425,30 @@ impl StudyRequest {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StudyResponse {
-  Notes { notes: Vec<Note> },
-  NoteSaved { note: Note },
-  NoteDeleted { id: String },
-  Annotations { annotations: Vec<Annotation> },
-  AnnotationSaved { annotation: Annotation },
-  AnnotationDeleted { id: String },
-  Progress { items: Vec<Progress> },
-  ProgressSaved { item: Progress },
+  Notes {
+    notes: Vec<Note>,
+  },
+  NoteSaved {
+    note: Note,
+  },
+  NoteDeleted {
+    id: String,
+  },
+  Annotations {
+    annotations: Vec<Annotation>,
+  },
+  AnnotationSaved {
+    annotation: Annotation,
+  },
+  AnnotationDeleted {
+    id: String,
+  },
+  Progress {
+    items: Vec<Progress>,
+  },
+  ProgressSaved {
+    item: Progress,
+  },
   /// Public content for a section: others' (and one's own) public notes &
   /// annotations plus all replies. Sent in response to `SubscribeSection`.
   SectionPublic {
@@ -423,9 +457,16 @@ pub enum StudyResponse {
     notes: Vec<Note>,
     replies: Vec<Reply>,
   },
-  ReplySaved { reply: Reply },
-  ReplyDeleted { id: String, section_path: String },
-  Error { message: String },
+  ReplySaved {
+    reply: Reply,
+  },
+  ReplyDeleted {
+    id: String,
+    section_path: String,
+  },
+  Error {
+    message: String,
+  },
 }
 
 /// A study mutation broadcast to a user's other live sessions.

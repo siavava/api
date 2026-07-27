@@ -53,7 +53,11 @@ async fn signup(
   app_state: Data<AppState>,
   body: Json<SignupRequest>,
 ) -> Result<HttpResponse, ActixError> {
-  let SignupRequest { username, email, password } = body.into_inner();
+  let SignupRequest {
+    username,
+    email,
+    password,
+  } = body.into_inner();
   match study::create_user(&app_state.db_client, &username, &email, &password)
     .await
   {
@@ -74,7 +78,10 @@ async fn login(
   app_state: Data<AppState>,
   body: Json<LoginRequest>,
 ) -> Result<HttpResponse, ActixError> {
-  let LoginRequest { identifier, password } = body.into_inner();
+  let LoginRequest {
+    identifier,
+    password,
+  } = body.into_inner();
   let user = match study::find_user(&app_state.db_client, &identifier).await {
     Ok(Some(u)) => u,
     Ok(None) => {
@@ -241,7 +248,8 @@ async fn handle_text(
   let request = match StudyRequest::parse(text) {
     Ok(r) => r,
     Err(message) => {
-      return socket::send_json(session, &StudyResponse::Error { message }).await;
+      return socket::send_json(session, &StudyResponse::Error { message })
+        .await;
     }
   };
 
@@ -259,7 +267,9 @@ async fn handle_text(
   if needs_auth && user_id.is_empty() {
     return socket::send_json(
       session,
-      &StudyResponse::Error { message: "authentication required".into() },
+      &StudyResponse::Error {
+        message: "authentication required".into(),
+      },
     )
     .await;
   }
@@ -316,11 +326,15 @@ async fn handle_text(
           if let Some(path) = section {
             if is_public {
               broadcast_section(
-                app_state, &path, StudyResponse::NoteSaved { note },
+                app_state,
+                &path,
+                StudyResponse::NoteSaved { note },
               );
             } else if was_public {
               broadcast_section(
-                app_state, &path, StudyResponse::NoteDeleted { id: id_hex },
+                app_state,
+                &path,
+                StudyResponse::NoteDeleted { id: id_hex },
               );
             }
           }
@@ -335,11 +349,15 @@ async fn handle_text(
       match study::delete_note(db, user_id, &id).await {
         Ok(meta) => {
           broadcast(
-            app_state, user_id, StudyResponse::NoteDeleted { id: id.clone() },
+            app_state,
+            user_id,
+            StudyResponse::NoteDeleted { id: id.clone() },
           );
           if let Some((true, Some(path))) = meta {
             broadcast_section(
-              app_state, &path, StudyResponse::NoteDeleted { id },
+              app_state,
+              &path,
+              StudyResponse::NoteDeleted { id },
             );
           }
           true
@@ -358,16 +376,20 @@ async fn handle_text(
           broadcast(
             app_state,
             user_id,
-            StudyResponse::AnnotationSaved { annotation: annotation.clone() },
+            StudyResponse::AnnotationSaved {
+              annotation: annotation.clone(),
+            },
           );
           if is_public {
             broadcast_section(
-              app_state, &section,
+              app_state,
+              &section,
               StudyResponse::AnnotationSaved { annotation },
             );
           } else if was_public {
             broadcast_section(
-              app_state, &section,
+              app_state,
+              &section,
               StudyResponse::AnnotationDeleted { id: id_hex },
             );
           }
@@ -382,12 +404,15 @@ async fn handle_text(
       match study::delete_annotation(db, user_id, &id).await {
         Ok(meta) => {
           broadcast(
-            app_state, user_id,
+            app_state,
+            user_id,
             StudyResponse::AnnotationDeleted { id: id.clone() },
           );
           if let Some((true, path)) = meta {
             broadcast_section(
-              app_state, &path, StudyResponse::AnnotationDeleted { id },
+              app_state,
+              &path,
+              StudyResponse::AnnotationDeleted { id },
             );
           }
           true
@@ -414,7 +439,9 @@ async fn handle_text(
         Ok(reply) => {
           let path = reply.section_path.clone();
           broadcast_section(
-            app_state, &path, StudyResponse::ReplySaved { reply },
+            app_state,
+            &path,
+            StudyResponse::ReplySaved { reply },
           );
           true
         }
@@ -427,7 +454,8 @@ async fn handle_text(
       match study::delete_reply(db, user_id, &id).await {
         Ok(section_path) => {
           broadcast_section(
-            app_state, &section_path,
+            app_state,
+            &section_path,
             StudyResponse::ReplyDeleted {
               id,
               section_path: section_path.clone(),
@@ -445,7 +473,9 @@ async fn handle_text(
         Ok(reply) => {
           let path = reply.section_path.clone();
           broadcast_section(
-            app_state, &path, StudyResponse::ReplySaved { reply },
+            app_state,
+            &path,
+            StudyResponse::ReplySaved { reply },
           );
           true
         }

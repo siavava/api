@@ -88,10 +88,9 @@ impl NowOps for Client {
       expires_at,
     };
     let bson = to_bson(&entry).map_err(|e| e.to_string())?;
-    let document = bson
-      .as_document()
-      .cloned()
-      .ok_or_else(|| "entry did not serialize to a BSON document".to_string())?;
+    let document = bson.as_document().cloned().ok_or_else(|| {
+      "entry did not serialize to a BSON document".to_string()
+    })?;
     coll
       .update_one(doc! { "key": key.as_str() }, doc! { "$set": document })
       .upsert(true)
@@ -138,8 +137,16 @@ pub async fn handle_request(db: &impl NowOps, request: NowRequest) -> Handled {
       image_url,
       meta,
       ttl_seconds,
-    } => match db.set_now(key, value, url, image_url, meta, ttl_seconds).await {
-      Ok(entry) => (NowResponse::Updated { entry: entry.into() }, true),
+    } => match db
+      .set_now(key, value, url, image_url, meta, ttl_seconds)
+      .await
+    {
+      Ok(entry) => (
+        NowResponse::Updated {
+          entry: entry.into(),
+        },
+        true,
+      ),
       Err(e) => (
         NowResponse::Error {
           message: format!("failed to set now: {e}"),
