@@ -579,22 +579,21 @@ pub async fn list_progress(
     .map_err(|e| e.to_string())
 }
 
-pub async fn save_progress(
-  client: &Client,
+/// Builds the upsert update document for a progress save. `status`/`scroll`
+/// are each only written when the caller actually provides one — so a
+/// status-only update (mark done / mark reading) leaves scroll alone, and a
+/// scroll-only update leaves status alone. Missing fields are seeded with
+/// sensible defaults on first insert only.
+pub fn progress_update(
   user_id: &str,
-  input: ProgressInput,
-) -> Result<Progress, String> {
-  let coll = db::collection::<Progress>(client, PROGRESS);
-  let now = Utc::now().to_rfc3339();
-  // Upsert by (user, section). `status`/`scroll` are each only written when the
-  // caller actually provides one — so a status-only update (mark done / mark
-  // reading) leaves scroll alone, and a scroll-only update leaves status alone.
-  // Missing fields are seeded with sensible defaults on first insert only.
+  input: &ProgressInput,
+  now: &str,
+) -> mongodb::bson::Document {
   let mut set = doc! {
     "user_id": user_id,
     "book_key": &input.book_key,
     "section_path": &input.section_path,
-    "updated_time": &now,
+    "updated_time": now,
   };
   let mut on_insert = doc! {};
   if input.status.is_empty() {
@@ -614,6 +613,17 @@ pub async fn save_progress(
   if !on_insert.is_empty() {
     update.insert("$setOnInsert", on_insert);
   }
+  update
+}
+
+pub async fn save_progress(
+  client: &Client,
+  user_id: &str,
+  input: ProgressInput,
+) -> Result<Progress, String> {
+  let coll = db::collection::<Progress>(client, PROGRESS);
+  let now = Utc::now().to_rfc3339();
+  let update = progress_update(user_id, &input, &now);
   coll
     .update_one(
       doc! { "user_id": user_id, "section_path": &input.section_path },

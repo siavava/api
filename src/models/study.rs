@@ -418,6 +418,23 @@ impl StudyRequest {
     serde_json::from_str(text)
       .map_err(|e| format!("invalid study request: {e}"))
   }
+
+  /// Whether this request mutates data and therefore requires an
+  /// authenticated session. Reads and section subscriptions are open to
+  /// anonymous connections.
+  pub fn requires_auth(&self) -> bool {
+    matches!(
+      self,
+      Self::SaveNote { .. }
+        | Self::DeleteNote { .. }
+        | Self::SaveAnnotation { .. }
+        | Self::DeleteAnnotation { .. }
+        | Self::SaveProgress { .. }
+        | Self::SaveReply { .. }
+        | Self::DeleteReply { .. }
+        | Self::LikeReply { .. }
+    )
+  }
 }
 
 /// Outgoing study WebSocket message, discriminated by `"type"`.

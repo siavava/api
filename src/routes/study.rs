@@ -253,18 +253,7 @@ async fn handle_text(
     }
   };
 
-  let needs_auth = matches!(
-    request,
-    StudyRequest::SaveNote { .. }
-      | StudyRequest::DeleteNote { .. }
-      | StudyRequest::SaveAnnotation { .. }
-      | StudyRequest::DeleteAnnotation { .. }
-      | StudyRequest::SaveProgress { .. }
-      | StudyRequest::SaveReply { .. }
-      | StudyRequest::DeleteReply { .. }
-      | StudyRequest::LikeReply { .. }
-  );
-  if needs_auth && user_id.is_empty() {
+  if request.requires_auth() && user_id.is_empty() {
     return socket::send_json(
       session,
       &StudyResponse::Error {
