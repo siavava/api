@@ -42,6 +42,18 @@ pub enum Scope {
 pub struct WatchRequest {
   /// The page path to watch (e.g. `/blog/post-1`).
   pub path: String,
+  /// Viewer city, when the client has resolved its location.
+  #[serde(default)]
+  pub city: Option<String>,
+  /// Viewer state/region, when resolved.
+  #[serde(default)]
+  pub state: Option<String>,
+  /// Viewer latitude in degrees, when resolved.
+  #[serde(default)]
+  pub lat: Option<f64>,
+  /// Viewer longitude in degrees, when resolved.
+  #[serde(default)]
+  pub lon: Option<f64>,
 }
 
 /// Request payload for an OpenGraph fetch over WebSocket.

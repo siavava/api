@@ -85,3 +85,72 @@ pub struct ActivityBucket {
   /// Views recorded during that hour.
   pub count: i64,
 }
+
+/// A viewer's resolved location, attached to view events when known.
+///
+/// # Fields
+///
+/// * `city` / `state` — Place names as reported by the client's
+///   geolocation lookup.
+/// * `lat` / `lon` — Coordinates, when reported.
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct ViewerLocation {
+  /// City name (e.g. `"San Francisco"`).
+  pub city: String,
+  /// State or region name (e.g. `"California"`).
+  pub state: String,
+  /// Latitude in degrees, when reported.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub lat: Option<f64>,
+  /// Longitude in degrees, when reported.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub lon: Option<f64>,
+}
+
+/// Aggregated views from one place for one site namespace.
+///
+/// One document exists per (namespace, city, state); `count`
+/// accumulates views and `last_view_ms` records the most recent one.
+///
+/// # Fields
+///
+/// * `city` / `state` — Place names.
+/// * `count` — Views recorded from this place.
+/// * `last_view_ms` — Milliseconds since the Unix epoch of the last view.
+/// * `lat` / `lon` — Coordinates, when any view reported them.
+#[derive(Debug, Serialize, Clone, Default, PartialEq)]
+pub struct ViewLocationEntry {
+  /// City name.
+  pub city: String,
+  /// State or region name.
+  pub state: String,
+  /// Views recorded from this place.
+  pub count: i64,
+  /// Milliseconds since the Unix epoch of the last view.
+  pub last_view_ms: i64,
+  /// Latitude in degrees, when reported.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub lat: Option<f64>,
+  /// Longitude in degrees, when reported.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub lon: Option<f64>,
+}
+
+impl ViewLocationEntry {
+  /// Builds a [`ViewLocationEntry`] from a raw BSON document,
+  /// defaulting any unreadable field.
+  pub fn from_document(document: &mongodb::bson::Document) -> Self {
+    let count = document
+      .get_i64("count")
+      .or_else(|_| document.get_i32("count").map(i64::from))
+      .unwrap_or_default();
+    Self {
+      city: document.get_str("city").unwrap_or_default().to_string(),
+      state: document.get_str("state").unwrap_or_default().to_string(),
+      count,
+      last_view_ms: document.get_i64("last_view_ms").unwrap_or_default(),
+      lat: document.get_f64("lat").ok(),
+      lon: document.get_f64("lon").ok(),
+    }
+  }
+}

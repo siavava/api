@@ -1,6 +1,6 @@
 //! WebSocket protocol types for view-count events.
 
-use super::model::PageViews;
+use super::model::{PageViews, ViewerLocation};
 use serde::{Deserialize, Serialize};
 
 /// Incoming view-count request.
@@ -23,10 +23,13 @@ pub enum ViewsRequest {
 pub enum ViewsResponse {
   /// All view counts, sorted by count descending.
   List { views: Vec<PageViews> },
-  /// A view-count update event for a single route.
+  /// A view-count update event for a single route. Carries the
+  /// viewer's location when the watching client reported one.
   Update {
     #[serde(flatten)]
     views: PageViews,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    location: Option<ViewerLocation>,
   },
   /// The current number of connected WebSocket clients.
   /// Broadcast to all clients whenever the count changes.
@@ -39,4 +42,6 @@ pub enum ViewsResponse {
 pub struct ViewEvent {
   /// The updated page views data.
   pub views: PageViews,
+  /// The viewer's location, when the watching client reported one.
+  pub location: Option<ViewerLocation>,
 }
