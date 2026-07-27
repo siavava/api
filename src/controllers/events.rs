@@ -28,23 +28,28 @@ fn get_collection(
 /// * `namespace` — The site namespace (e.g. `<p>`).
 /// * `kind` — Event kind: `"view"` or `"visit"`.
 /// * `label` — Human-readable subject of the event.
+/// * `location` — `(city, state)` of the viewer, when known.
 pub async fn record_event(
   client: &Client,
   namespace: &str,
   kind: &str,
   label: &str,
+  location: Option<(&str, &str)>,
 ) -> Result<(), DbError> {
   let collection = get_collection(client);
   let now_ms = chrono::Utc::now().timestamp_millis();
 
-  collection
-    .insert_one(doc! {
-      "namespace": namespace,
-      "kind": kind,
-      "label": label,
-      "ts_ms": now_ms,
-    })
-    .await?;
+  let mut event = doc! {
+    "namespace": namespace,
+    "kind": kind,
+    "label": label,
+    "ts_ms": now_ms,
+  };
+  if let Some((city, state)) = location {
+    event.insert("city", city);
+    event.insert("state", state);
+  }
+  collection.insert_one(event).await?;
   collection
     .delete_many(doc! { "ts_ms": { "$lt": now_ms - RETENTION_MS } })
     .await?;

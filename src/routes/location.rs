@@ -103,6 +103,7 @@ async fn get_location(
           ns,
           "visit",
           &format!("{city_str}, {state_str}"),
+          Some((&city_str, &state_str)),
         )
         .await;
       }

@@ -21,6 +21,12 @@ pub struct SiteEvent {
   pub label: String,
   /// Milliseconds since the Unix epoch.
   pub ts_ms: i64,
+  /// Viewer city, when the event carried a location.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub city: Option<String>,
+  /// Viewer state/region, when the event carried a location.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub state: Option<String>,
 }
 
 impl SiteEvent {
@@ -39,6 +45,8 @@ impl SiteEvent {
       kind: document.get_str("kind").unwrap_or_default().to_string(),
       label: document.get_str("label").unwrap_or_default().to_string(),
       ts_ms: document.get_i64("ts_ms").unwrap_or_default(),
+      city: document.get_str("city").ok().map(str::to_string),
+      state: document.get_str("state").ok().map(str::to_string),
     }
   }
 }
