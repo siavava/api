@@ -1,10 +1,59 @@
-version: '3.8'
+# Compose stack for local development: the API built from the
+# Dockerfile plus a self-contained MongoDB, so nothing points at the
+# production database.
+#
+#   docker compose up --build      # api on :8080 (override with API_PORT)
+#   make docker-dev                # + rebuild on source changes (compose watch)
+#
+# Secrets (JWT_SECRET, SPOTIFY_*) are read from `.env` when present;
+# MONGODB_URI is pinned to the bundled mongo regardless.
+#
+# Author: Amittai (@siavava)
+
 services:
-  app:
-    image: debian:stable
+  api:
+    build:
+      context: .
+      # docker-dev flips this to dev-runner (debug build) so watch
+      # rebuilds stay fast.
+      target: ${API_BUILD_TARGET:-runner}
+    develop:
+      watch:
+        - path: src
+          action: rebuild
+        - path: Cargo.toml
+          action: rebuild
+        - path: Cargo.lock
+          action: rebuild
     ports:
-     - '80:80'
+      - "${API_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
     environment:
-      SERVER_PORT: 80
-      RUST_LOG: debug
+      MONGODB_URI: mongodb://mongo:27017
+      PORT: 8080
+      RUST_LOG: ${RUST_LOG:-info}
       LOG_FORMAT: json
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:8
+    # Not published to the host; reachable as `mongo:27017` inside the
+    # stack. Uncomment to connect from local tooling.
+    # ports:
+    #   - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

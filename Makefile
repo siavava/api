@@ -13,7 +13,7 @@ endif
 
 all: build
 
-.PHONY: build dev test docs style-check lint audit
+.PHONY: build dev test docs style-check lint audit docker-build docker-up docker-down docker-logs docker-dev
 
 build:
 	@cargo build --release
@@ -29,6 +29,21 @@ clean:
 
 fmt:
 	@cargo +nightly fmt
+
+docker-build:
+	@docker compose build
+
+docker-dev:
+	@API_BUILD_TARGET=dev-runner docker compose up --build --watch
+
+docker-up:
+	@docker compose up --build --detach
+
+docker-down:
+	@docker compose down
+
+docker-logs:
+	@docker compose logs --follow api
 
 TESTS = ""
 ifeq (test,$(firstword $(MAKECMDGOALS)))
