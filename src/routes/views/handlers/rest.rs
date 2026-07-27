@@ -145,3 +145,34 @@ pub async fn get_activity(
     }
   }
 }
+
+/// Query parameters for `GET /views/locations/`.
+#[derive(Deserialize, Debug)]
+pub struct ViewLocationsRequestData {
+  /// The site namespace to read view locations for (e.g. `<p>`).
+  pub ns: String,
+}
+
+/// `GET /views/locations/` — per-place view aggregates for a namespace.
+///
+/// # Example Response
+///
+/// ```json
+/// [{ "city": "New York", "state": "New York", "count": 42, "last_view_ms": 1758000000000 }]
+/// ```
+#[get("/locations/")]
+pub async fn get_view_locations(
+  app_state: Data<AppState>,
+  request_data: Query<ViewLocationsRequestData>,
+) -> Result<HttpResponse, ActixError> {
+  let db_client = &app_state.db_client;
+  let ViewLocationsRequestData { ns } = request_data.into_inner();
+
+  match views_controller::get_view_locations(db_client, &ns).await {
+    Ok(entries) => Ok(HttpResponse::Ok().json(entries)),
+    Err(err) => {
+      tracing::error!("failed to read view locations: {err}");
+      Ok(HttpResponse::InternalServerError().json("Error"))
+    }
+  }
+}

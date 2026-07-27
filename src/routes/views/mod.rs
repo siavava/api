@@ -7,6 +7,7 @@
 //! | Method | Path                | Protocol | Description                                    |
 //! |--------|---------------------|----------|------------------------------------------------|
 //! | GET    | `/views/`           | REST     | Read view counts (single or all).              |
+//! | GET    | `/views/locations/` | REST     | Per-place view aggregates for a namespace.     |
 //! | POST   | `/views/`           | REST     | Upsert one or more view-count records.         |
 //! | DELETE | `/views/`           | REST     | Delete a route's view-count document.          |
 //! | GET    | `/views/watch/`     | SSE      | Stream of real-time view-count updates.        |
@@ -21,6 +22,7 @@ pub fn register(cfg: &mut actix_web::web::ServiceConfig) {
   cfg.service(
     scope("/views")
       .service(handlers::rest::get_activity)
+      .service(handlers::rest::get_view_locations)
       .service(handlers::rest::get_views)
       .service(handlers::rest::delete_views)
       .service(handlers::rest::insert_views)
