@@ -22,7 +22,7 @@ use crate::{
     location::LocationResponse,
     now::NowEvent,
     playback::PlaybackResponse,
-    views::ViewsResponse,
+    views::{ViewerLocation, ViewsResponse},
   },
   protocol::socket,
   routes::{
@@ -94,6 +94,7 @@ async fn ws_event_loop(
 
   let now_tx = senders.now.clone();
   let mut active_path: Option<String> = None;
+  let mut viewer_location: Option<ViewerLocation> = None;
 
   // Channel for receiving results from spawned background tasks
   // (e.g. OpenGraph fetches) without blocking the event loop.
@@ -114,13 +115,18 @@ async fn ws_event_loop(
         let prev_path = active_path.clone();
         if !handle_ws_frame(
           msg, &app_state, &mut session,
-          &senders.comments, &now_tx, &mut active_path, &deferred_tx,
+          &senders.comments, &now_tx, &mut active_path, &mut viewer_location, &deferred_tx,
         ).await {
           break;
         }
 
         if active_path != prev_path {
-          views::track_page_view(&app_state.db_client, &senders, active_path.as_deref()).await;
+          views::track_page_view(
+            &app_state.db_client,
+            &senders,
+            active_path.as_deref(),
+            viewer_location.as_ref(),
+          ).await;
         }
       }
 
@@ -153,6 +159,7 @@ async fn ws_event_loop(
         }
         let response = ConnectResponse::Views(ViewsResponse::Update {
           views: event.views,
+          location: event.location,
         });
         if !socket::send_json(&mut session, &response).await {
           break;
@@ -204,6 +211,7 @@ async fn handle_ws_frame(
   comment_tx: &broadcast::Sender<CommentEvent>,
   now_tx: &broadcast::Sender<NowEvent>,
   active_path: &mut Option<String>,
+  viewer_location: &mut Option<ViewerLocation>,
   deferred_tx: &tokio::sync::mpsc::Sender<ConnectResponse>,
 ) -> bool {
   let db_client = &app_state.db_client;
@@ -274,6 +282,15 @@ async fn handle_ws_frame(
         }
         ConnectRequest::Watch(req) => {
           *active_path = Some(req.path.clone());
+          // A same-path re-watch updates attribution without recounting.
+          if let (Some(city), Some(state)) = (req.city, req.state) {
+            *viewer_location = Some(ViewerLocation {
+              city,
+              state,
+              lat: req.lat,
+              lon: req.lon,
+            });
+          }
           let response =
             ConnectResponse::Watch(crate::models::connect::WatchResponse {
               path: req.path,

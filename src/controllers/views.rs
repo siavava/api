@@ -216,11 +216,15 @@ pub async fn get_all_views(
 /// Increments the view count for a path and broadcasts the update.
 ///
 /// Called when a client's active path changes. No-ops if `path` is `None`.
-/// Also records the view into the hourly activity log.
+/// Also records the view into the hourly activity log, and — when the
+/// watching client has reported a location — attributes the view to it:
+/// the site event carries `city`/`state` and the per-place view
+/// aggregate is bumped.
 pub async fn track_page_view(
   client: &Client,
   senders: &EventSenders,
   path: Option<&str>,
+  location: Option<&ViewerLocation>,
 ) {
   if let Some(path) = path
     && let Ok(updated) =
@@ -229,14 +233,87 @@ pub async fn track_page_view(
     if !crate::MONITOR_PATHS.contains(&path) {
       let _ = record_activity(client, path).await;
       if let Some((namespace, label)) = path.split_once(':') {
+        let event_location = location
+          .map(|loc| (loc.city.as_str(), loc.state.as_str()));
         let _ = crate::controllers::events::record_event(
-          client, namespace, "view", label,
+          client, namespace, "view", label, event_location,
         )
         .await;
+        if let Some(loc) = location {
+          let _ = record_view_location(client, namespace, loc).await;
+        }
       }
     }
-    let _ = senders.views.send(ViewEvent { views: updated });
+    let _ = senders.views.send(ViewEvent {
+      views: updated,
+      location: location.cloned(),
+    });
   }
+}
+
+/// The per-place view-aggregate collection name.
+const VIEW_LOCATIONS_COLL_NAME: &str = "view_locations";
+
+/// Bumps the per-place view aggregate for a namespace.
+///
+/// One document exists per (namespace, city, state); each call
+/// increments its count, refreshes `last_view_ms`, and records
+/// coordinates when the viewer reported them.
+pub async fn record_view_location(
+  client: &Client,
+  namespace: &str,
+  location: &ViewerLocation,
+) -> Result<(), DbError> {
+  if location.city.is_empty() && location.state.is_empty() {
+    return Ok(());
+  }
+  let now_ms = chrono::Utc::now().timestamp_millis();
+  let mut set = doc! { "last_view_ms": now_ms };
+  if let (Some(lat), Some(lon)) = (location.lat, location.lon) {
+    set.insert("lat", lat);
+    set.insert("lon", lon);
+  }
+  let collection: mongodb::Collection<mongodb::bson::Document> =
+    crate::db::collection(client, VIEW_LOCATIONS_COLL_NAME);
+  collection
+    .update_one(
+      doc! {
+        "namespace": namespace,
+        "city": &location.city,
+        "state": &location.state,
+      },
+      doc! { "$inc": { "count": 1 }, "$set": set },
+    )
+    .upsert(true)
+    .await?;
+  Ok(())
+}
+
+/// Reads a namespace's per-place view aggregates.
+///
+/// # Arguments
+///
+/// * `client` — The MongoDB client connection.
+/// * `namespace` — The site namespace (e.g. `<p>`).
+///
+/// # Returns
+///
+/// [`ViewLocationEntry`]s sorted by view count descending.
+pub async fn get_view_locations(
+  client: &Client,
+  namespace: &str,
+) -> Result<Vec<ViewLocationEntry>, DbError> {
+  let collection: mongodb::Collection<mongodb::bson::Document> =
+    crate::db::collection(client, VIEW_LOCATIONS_COLL_NAME);
+  let mut cursor = collection
+    .find(doc! { "namespace": namespace })
+    .sort(doc! { "count": -1 })
+    .await?;
+  let mut entries = Vec::new();
+  while let Some(document) = cursor.try_next().await? {
+    entries.push(ViewLocationEntry::from_document(&document));
+  }
+  Ok(entries)
 }
 
 /// The hourly view-activity collection name.
