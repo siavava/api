@@ -75,6 +75,22 @@ async fn connect_ws(
   Ok(response)
 }
 
+/// Mutable per-connection state the frame handler maintains.
+///
+/// # Fields
+///
+/// * `active_path` — The client's active path, set by a `watch` request;
+///   controls broadcast filtering and view counting.
+/// * `viewer_location` — The viewer's reported location, attached to
+///   views for place attribution.
+#[derive(Default)]
+struct ConnectionState {
+  /// The client's active path (set by a `watch` request).
+  active_path: Option<String>,
+  /// The viewer's reported location, for view attribution.
+  viewer_location: Option<ViewerLocation>,
+}
+
 /// Main event loop for a single WebSocket client.
 ///
 /// Multiplexes incoming client messages with comment and view-count
@@ -93,8 +109,7 @@ async fn ws_event_loop(
   } = channels;
 
   let now_tx = senders.now.clone();
-  let mut active_path: Option<String> = None;
-  let mut viewer_location: Option<ViewerLocation> = None;
+  let mut conn = ConnectionState::default();
 
   // Channel for receiving results from spawned background tasks
   // (e.g. OpenGraph fetches) without blocking the event loop.
@@ -112,20 +127,20 @@ async fn ws_event_loop(
 
       ws_msg = msg_stream.next() => {
         let Some(Ok(msg)) = ws_msg else { break };
-        let prev_path = active_path.clone();
+        let prev_path = conn.active_path.clone();
         if !handle_ws_frame(
           msg, &app_state, &mut session,
-          &senders.comments, &now_tx, &mut active_path, &mut viewer_location, &deferred_tx,
+          &senders.comments, &now_tx, &mut conn, &deferred_tx,
         ).await {
           break;
         }
 
-        if active_path != prev_path {
+        if conn.active_path != prev_path {
           views::track_page_view(
             &app_state.db_client,
             &senders,
-            active_path.as_deref(),
-            viewer_location.as_ref(),
+            conn.active_path.as_deref(),
+            conn.viewer_location.as_ref(),
           ).await;
         }
       }
@@ -140,7 +155,7 @@ async fn ws_event_loop(
 
       event = receivers.comments.recv() => {
         let Ok(event) = event else { continue };
-        if active_path.as_deref() != Some(&event.path) {
+        if conn.active_path.as_deref() != Some(&event.path) {
           continue;
         }
         let response = ConnectResponse::Comments(event.response);
@@ -151,7 +166,7 @@ async fn ws_event_loop(
 
       event = receivers.views.recv() => {
         let Ok(event) = event else { continue };
-        let path = active_path.as_deref();
+        let path = conn.active_path.as_deref();
         let is_match = path == Some(event.views.route.as_str());
         let is_monitor = monitors_route(path, &event.views.route);
         if !is_monitor && !is_match {
@@ -168,7 +183,7 @@ async fn ws_event_loop(
 
       event = receivers.location.recv() => {
         let Ok(event) = event else { continue };
-        let path = active_path.as_deref();
+        let path = conn.active_path.as_deref();
         let Some(ns) = event.namespace.as_deref() else { continue };
         let is_monitor = path.is_some_and(|p| {
           p == crate::GLOBAL_MONITOR
@@ -210,8 +225,7 @@ async fn handle_ws_frame(
   session: &mut Session,
   comment_tx: &broadcast::Sender<CommentEvent>,
   now_tx: &broadcast::Sender<NowEvent>,
-  active_path: &mut Option<String>,
-  viewer_location: &mut Option<ViewerLocation>,
+  conn: &mut ConnectionState,
   deferred_tx: &tokio::sync::mpsc::Sender<ConnectResponse>,
 ) -> bool {
   let db_client = &app_state.db_client;
@@ -281,10 +295,10 @@ async fn handle_ws_frame(
           true
         }
         ConnectRequest::Watch(req) => {
-          *active_path = Some(req.path.clone());
+          conn.active_path = Some(req.path.clone());
           // A same-path re-watch updates attribution without recounting.
           if let (Some(city), Some(state)) = (req.city, req.state) {
-            *viewer_location = Some(ViewerLocation {
+            conn.viewer_location = Some(ViewerLocation {
               city,
               state,
               lat: req.lat,

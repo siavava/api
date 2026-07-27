@@ -83,8 +83,13 @@ async fn get_location(
 ) -> Result<HttpResponse, ActixError> {
   let db_client = &app_state.db_client;
 
-  let LocationRequestData { city, state, ns, lat, lon } =
-    request_data.into_inner();
+  let LocationRequestData {
+    city,
+    state,
+    ns,
+    lat,
+    lon,
+  } = request_data.into_inner();
 
   match (city, state) {
     (Some(city_str), Some(state_str)) => {

@@ -33,7 +33,10 @@ pub async fn handle_ws_request(
         .get_views(&path, ViewsIncrement::INCREMENT)
         .await
         .unwrap_or_default();
-      ConnectResponse::Views(ViewsResponse::Update { views: page, location: None })
+      ConnectResponse::Views(ViewsResponse::Update {
+        views: page,
+        location: None,
+      })
     }
   };
   socket::send_json(session, &response).await

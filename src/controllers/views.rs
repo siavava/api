@@ -233,10 +233,14 @@ pub async fn track_page_view(
     if !crate::MONITOR_PATHS.contains(&path) {
       let _ = record_activity(client, path).await;
       if let Some((namespace, label)) = path.split_once(':') {
-        let event_location = location
-          .map(|loc| (loc.city.as_str(), loc.state.as_str()));
+        let event_location =
+          location.map(|loc| (loc.city.as_str(), loc.state.as_str()));
         let _ = crate::controllers::events::record_event(
-          client, namespace, "view", label, event_location,
+          client,
+          namespace,
+          "view",
+          label,
+          event_location,
         )
         .await;
         if let Some(loc) = location {

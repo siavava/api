@@ -1,7 +1,9 @@
 //! REST handlers for view-count endpoints.
 
-use crate::{AppState, all_views, models::views::PageViews, views};
-use crate::controllers::views as views_controller;
+use crate::{
+  AppState, all_views, controllers::views as views_controller,
+  models::views::PageViews, views,
+};
 
 use actix_web::{
   Error as ActixError, HttpResponse, delete, get, post,

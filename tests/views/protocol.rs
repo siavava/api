@@ -1,9 +1,9 @@
 //! Tests for views request/response protocol
 //! serialization and deserialization.
 
-use server::models::connect::ConnectRequest;
-use server::models::views::{
-  PageViews, ViewerLocation, ViewsRequest, ViewsResponse,
+use server::models::{
+  connect::ConnectRequest,
+  views::{PageViews, ViewerLocation, ViewsRequest, ViewsResponse},
 };
 
 #[test]
