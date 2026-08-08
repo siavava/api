@@ -1,0 +1,12 @@
+name: migrations
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.10
+  - pymongo>=4.0
+  - python-dotenv
+  - pycountry
+  - pip
+  - pip:
+      - reverse_geocoder>=1.5
