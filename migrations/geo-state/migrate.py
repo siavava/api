@@ -236,8 +236,6 @@ def desired_state(
       return code, "US", "reverse-geocoded (US region)"
     return COUNTRY_DISPLAY.get(cc, cc), cc, "reverse-geocoded (country)"
 
-  # No coordinates: fall back to the curated city table, then keep states
-  # that are already valid codes; everything else needs a human.
   override = CITY_COUNTRY_OVERRIDES.get(doc.city)
   if override is not None:
     return override, DISPLAY_COUNTRY.get(override, override), "curated city override"
@@ -325,15 +323,12 @@ def migrate(db_name: str, mongo_uri: str, *, apply: bool = False) -> None:
     print("No documents in location_history.")
     return
 
-  # Batch reverse-geocode every document that has coordinates.
   with_coords = [d for d in docs if d.lat is not None and d.lon is not None]
   geocoded: dict[Any, dict[Any, Any]] = {}
   if with_coords:
     results = rg.search([(d.lat, d.lon) for d in with_coords], mode=1)
     geocoded = {d.id: r for d, r in zip(with_coords, results)}
 
-  # Plan: docs whose identity changes (state fix and/or namespace backfill),
-  # grouped by their corrected identity.
   groups: dict[tuple[str, str, str], list[HistoryDoc]] = {}
   unresolved: list[tuple[HistoryDoc, str]] = []
   unchanged_by_key: dict[tuple[str | None, str, str], HistoryDoc] = {}
@@ -406,13 +401,11 @@ def migrate(db_name: str, mongo_uri: str, *, apply: bool = False) -> None:
     if stale_ids:
       history.delete_many({"_id": {"$in": stale_ids}})
 
-    # Keep the singleton "last known location" consistent with the rewrite.
     db[LAST_LOCATION_COLL].update_many(
       {"city": city, "state": {"$in": [s.state for s in sources]}},
       {"$set": {"state": new_state}},
     )
 
-  # Coordinate backfill for documents whose identity is already correct.
   coord_fills: list[tuple[HistoryDoc, float, float]] = []
   for doc in unchanged_by_key.values():
     if doc.lat is not None and doc.lon is not None:
@@ -468,7 +461,6 @@ def main() -> None:
   )
   args = parser.parse_args()
 
-  # Load .env from project root (two levels up from this script).
   env_path = Path(__file__).resolve().parents[2] / ".env"
   load_dotenv(env_path)
 
